@@ -1,4 +1,4 @@
-﻿const CACHE = 'roofing-rep-tracker-v4'; // ADJUST: bump this any time pwa/ files change, so phones don't serve a stale shell
+﻿const CACHE = 'roofing-rep-tracker-v5'; // ADJUST: bump this any time pwa/ files change, so phones don't serve a stale shell
 const SHELL = ['./index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', event => {
