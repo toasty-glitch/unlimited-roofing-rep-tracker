@@ -101,7 +101,6 @@ function ss_() {
 function sheet_(name) { return ss_().getSheetByName(name); }
 
 function seedReps_() {
-  const sh = SpreadsheetApp.getActiveSpreadsheet ? null : null;
   const reps = SpreadsheetApp.openById(PropertiesService.getScriptProperties().getProperty(SS_PROP)).getSheetByName('Reps');
   if (reps.getLastRow() > 1) return;
   SEED_REPS.forEach((r, idx) => reps.appendRow(['R' + String(idx + 1).padStart(3, '0'), r[0], '', r[1], true, new Date()]));
@@ -202,7 +201,7 @@ function rowFromData_(id, rep, d, calc, updatedAt) {
     signed ? num_(d.contractAmount) : '', signed ? num_(d.cashAmount) : '', signed ? num_(d.downPayment) : '', boolText_(d.appliedFinancing),
     d.financingResult || '', d.financingSource || '', numOrBlank_(d.approvedAmount), numOrBlank_(d.deniedAmount),
     numOrBlank_(d.squareCount), numOrBlank_(d.costPerSquare), calc.rate === null ? '' : calc.rate, calc.roofCommission === null ? '' : calc.roofCommission,
-    calc.pendingApproval ? 'Y' : boolText_(d.managerApprovedBelowFloor), boolText_(d.guttersIncluded), numOrBlank_(d.gutterLf), numOrBlank_(d.gutterPricePerLf), calc.gutterCommission,
+    boolText_(d.managerApprovedBelowFloor), boolText_(d.guttersIncluded), numOrBlank_(d.gutterLf), numOrBlank_(d.gutterPricePerLf), calc.gutterCommission,
     boolText_(d.sidingIncluded), numOrBlank_(d.sidingSqft), numOrBlank_(d.sidingPricePerSqft), calc.sidingCommission,
     numOrBlank_(d.addedWorkAmount), calc.addedWorkCommission, calc.flatCommission, calc.totalCommission,
     boolText_(d.crmxUploaded), boolText_(d.appointmentConfirmed), boolText_(d.qualifiedSit), d.managerNotes || '', updatedAt
@@ -215,7 +214,10 @@ function commission_(d) {
   const cps = num_(d.costPerSquare);
   let rate = roofCommissionRate_(cps);
   let pending = false;
-  if (rate === null) { pending = true; rate = d.overrideRate === '' || d.overrideRate == null ? null : Number(d.overrideRate); }
+  if (rate === null) {
+    rate = d.overrideRate === '' || d.overrideRate == null ? null : Number(d.overrideRate);
+    pending = rate === null;
+  }
   const roofCommission = rate === null ? null : round2_(contract * rate);
   const gutterTotal = truthy_(d.guttersIncluded) ? num_(d.gutterLf) * num_(d.gutterPricePerLf) : 0;
   const sidingTotal = truthy_(d.sidingIncluded) ? num_(d.sidingSqft) * num_(d.sidingPricePerSqft) : 0;
@@ -272,7 +274,7 @@ function entryFromRow_(r) {
     approvedAmount:r[20], deniedAmount:r[21], squareCount:r[22], costPerSquare:r[23], commissionRate:r[24], roofCommission:r[25],
     managerApprovedBelowFloor:r[26], guttersIncluded:r[27], gutterLf:r[28], gutterPricePerLf:r[29], sidingIncluded:r[31],
     sidingSqft:r[32], sidingPricePerSqft:r[33], addedWorkAmount:r[35], totalCommission:r[38], crmxUploaded:r[39],
-    appointmentConfirmed:r[40], qualifiedSit:r[41], managerNotes:r[42], pendingApproval:r[26] === 'Y' && r[24] === ''
+    appointmentConfirmed:r[40], qualifiedSit:r[41], managerNotes:r[42], pendingApproval:r[7] === 'Contract Signed' && r[24] === ''
   };
 }
 
@@ -301,11 +303,14 @@ function rollup_(start, end, repName) {
     if (outcome === 'No Show' || outcome === 'Cancelled') totals.noOp++;
     if (outcome === 'Contract Signed') {
       totals.roofingAgreements++;
-      totals.grossRevenue += num_(r[14]);
+      const gutterTotal = r[27] === 'Y' ? num_(r[28]) * num_(r[29]) : 0;
+      const sidingTotal = r[31] === 'Y' ? num_(r[32]) * num_(r[33]) : 0;
+      const addedTotal = num_(r[35]);
+      totals.grossRevenue += num_(r[14]) + gutterTotal + sidingTotal + addedTotal;
       totals.commissionPaid += num_(r[38]);
       if (!r[10]) totals.oneCallClose++; else totals.followUpContracts++;
     }
-    if (outcome === 'Disinterested') { totals.turnDownCount++; totals.turnDownRevenue += num_(r[14]); }
+    if (r[18] === 'Denied') { totals.turnDownCount++; totals.turnDownRevenue += num_(r[21]); }
   });
   const doors = sheet_('DoorsKnocked').getDataRange().getValues();
   doors.slice(1).forEach(r => {
@@ -320,7 +325,7 @@ function rollup_(start, end, repName) {
 }
 
 function pendingApprovals_() {
-  return sheet_('Dispositions').getDataRange().getValues().slice(1).filter(r => r[26] === 'Y' && r[24] === '').map(entryFromRow_);
+  return sheet_('Dispositions').getDataRange().getValues().slice(1).filter(r => r[7] === 'Contract Signed' && r[24] === '').map(entryFromRow_);
 }
 
 function adminApproveDeal_(req, sess) {
