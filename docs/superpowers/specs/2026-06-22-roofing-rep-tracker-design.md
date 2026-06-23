@@ -86,8 +86,10 @@ system required.
    - "Contract Signed" expands inline: price/sq → **live commission preview** updates
      as the rep types → financing block (only shown if financing applied) → gutters/
      siding/added-work block → CRMX-upload checkbox → save.
-   - If cost/sq < $580, save is blocked with a "needs manager approval" state; the
-     entry is flagged and visible to admins until cleared.
+   - If cost/sq < $580, the row still saves (Roof Commission $ left blank, manager-
+     approval-pending flag set); the rep sees a "needs manager approval" confirmation
+     instead of a normal save confirmation. Entry stays flagged and visible on the
+     Manager Dashboard until an admin sets the rate and clears it.
 4. **History** — past entries, filterable by date range; reps edit same-day only,
    admins can edit any entry.
 5. **Manager Dashboard** (admin-only) — team rollup for any date range (leads, demos,
