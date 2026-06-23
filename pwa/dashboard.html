@@ -4,36 +4,70 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Unlimited Roofing — Rep Performance Dashboard</title>
+<!--
+  Dashboard v2. What this file does: admin-only read-only dashboard for the rep tracker.
+  Fetches adminDashboardData (Code.gs) for a date range + branch and renders goal dials,
+  KPI dials, scorecards, rep/lead-source tables, charts, and a doors funnel.
+  Adjustable knobs (search "ADJUST:" in this file): brand palette (top of <style>), date
+  presets (PRESETS), branch list (branch <select> options), which dial shows which metric
+  (buildYearlyDials/buildKpiDials), DEFAULT_API. See docs/ADJUSTING.md for the non-coder guide.
+-->
 <style>
-:root{--bg:#1f2c3d;--panel:#2a3a50;--panel2:#324158;--line:#3d4f6b;--ink:#fff;--muted:#9fb0c7;--blue:#4a90d9;--gold:#d49b2a;--green:#3fae6f;--red:#d96a6a;--teal:#36c2c2;--shadow:0 2px 10px rgba(0,0,0,.25)}
+:root{
+  /* ADJUST: brand palette — change here to retheme the whole dashboard in one place */
+  --blue:#057EFB; --blue-dark:#0468CF;
+  --gold:#FFBB00; --gold-dark:#C98A00;
+  --ink:#333333; --muted:#494C4E; --muted2:#7799AD;
+  --bg:#F6F6F6; --panel:#ffffff; --tint:#E5F2FA;
+  --line:#E1E6EA; --gauge-track:#E6EAED;
+  --green:#2e9e52; --red:#d64545;
+  --shadow:0 2px 10px rgba(0,0,0,.06);
+}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:Arial,Helvetica,sans-serif;padding-bottom:40px}
-button,input{font:inherit}button{border:0;border-radius:8px;padding:11px 12px;background:var(--blue);color:#fff;font-weight:700;cursor:pointer}
-input{width:100%;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink);padding:10px;font-size:16px}
-label{display:block;margin:10px 0 4px;font-size:12px;font-weight:700;color:var(--muted)}
-header{background:var(--panel);padding:16px 20px;box-shadow:var(--shadow);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
-header h1{font-size:20px;margin:0;letter-spacing:.5px}
-header .sub{color:var(--muted);font-size:12px}
-main{max-width:1300px;margin:0 auto;padding:16px}
+button,input,select{font:inherit}
+button{border:0;border-radius:8px;padding:10px 14px;background:var(--blue);color:#fff;font-weight:700;cursor:pointer}
+button:hover{background:var(--blue-dark)}
+button.ghost{background:var(--panel);color:var(--blue);border:1px solid var(--blue)}
+input,select{border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink);padding:9px 10px;font-size:14px}
+label{display:block;margin:10px 0 4px;font-size:12px;font-weight:700;color:var(--muted2)}
+header{background:var(--panel);padding:16px 20px;box-shadow:var(--shadow);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;border-bottom:3px solid var(--blue)}
+header h1{font-size:20px;margin:0;letter-spacing:.5px;color:var(--blue)}
+header .sub{color:var(--muted2);font-size:12px}
+main{max-width:1320px;margin:0 auto;padding:16px}
 .login-wrap{max-width:380px;margin:8vh auto 0;padding:12px}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;margin-bottom:16px;padding:16px;box-shadow:var(--shadow)}
-.card h2{margin:0 0 12px;color:var(--teal);font-size:14px;text-transform:uppercase;letter-spacing:.5px}
-.grid2{display:grid;grid-template-columns:1.1fr 2fr;gap:16px;align-items:start}
-.grid3{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-.scorecards{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.score{background:var(--panel2);border-radius:8px;padding:10px;text-align:center}
-.score b{display:block;font-size:20px}
-.score span{font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.3px}
-.score .rate{font-size:11px;color:var(--gold);margin-top:2px;display:block}
+.card h2{margin:0 0 12px;color:var(--blue);font-size:14px;text-transform:uppercase;letter-spacing:.5px}
+.controlbar{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end}
+.controlbar .presets{display:flex;gap:6px;flex-wrap:wrap}
+.controlbar .presets button.active{background:var(--blue-dark)}
+.dialrow{display:flex;gap:10px;flex-wrap:wrap;justify-content:space-around}
+.gauge-wrap{text-align:center}
+.gauge-label{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-top:4px}
+.scorecards{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.score{background:var(--tint);border-radius:8px;padding:10px;text-align:center}
+.score b{display:block;font-size:19px;color:var(--ink)}
+.score span{font-size:10px;color:var(--muted2);font-weight:700;text-transform:uppercase;letter-spacing:.3px}
+.score .rate{font-size:11px;color:var(--gold-dark);margin-top:2px;display:block}
 table{width:100%;border-collapse:collapse;font-size:12px}
 table th,table td{padding:7px 9px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
 table th:first-child,table td:first-child{text-align:left;position:sticky;left:0;background:var(--panel)}
-table thead th{background:var(--panel2);color:var(--teal);font-weight:700;text-transform:uppercase;font-size:10px}
-table tbody tr:hover{background:rgba(255,255,255,.04)}
+table thead th{background:var(--tint);color:var(--blue-dark);font-weight:700;text-transform:uppercase;font-size:10px}
+table tbody tr:hover{background:var(--tint)}
 .tablewrap{overflow-x:auto}
-.small{font-size:12px;color:var(--muted)}
+.small{font-size:12px;color:var(--muted2)}
 .error{color:var(--red)}
 .hide{display:none!important}
 canvas{max-height:300px}
+.delta{font-size:10px;font-weight:700}
+.delta-up{color:var(--green)}.delta-down{color:var(--red)}.delta-flat{color:var(--muted2)}
+.funnel{display:flex;align-items:center;gap:6px;overflow-x:auto;padding:8px 0}
+.funnel .stage{flex:1;min-width:110px;text-align:center;background:var(--tint);border-radius:8px;padding:12px 6px}
+.funnel .stage b{display:block;font-size:18px;color:var(--blue-dark)}
+.funnel .stage span{font-size:10px;color:var(--muted2);text-transform:uppercase;font-weight:700}
+.funnel .arrow{color:var(--muted2);font-size:18px;flex:0 0 auto}
+.funnel .convpct{font-size:10px;color:var(--gold-dark);font-weight:700}
+.grid2{display:grid;grid-template-columns:1.1fr 2fr;gap:16px;align-items:start}
+.grid3{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 @media(max-width:900px){.grid2,.grid3{grid-template-columns:1fr}.scorecards{grid-template-columns:1fr 1fr}}
 </style>
 </head>
@@ -41,7 +75,7 @@ canvas{max-height:300px}
 
 <div id="loginScreen" class="login-wrap">
   <div class="card">
-    <h2 style="text-align:center;color:var(--teal);font-size:22px;text-transform:none">Rep Performance Dashboard</h2>
+    <h2 style="text-align:center;color:var(--blue);font-size:22px;text-transform:none">Unlimited Roofing — Rep Performance Dashboard</h2>
     <p class="small" style="text-align:center">Admin sign-in (same credentials as the rep tracker app)</p>
     <label>Name</label><input id="loginName" autocomplete="username">
     <label>Password</label><input id="loginPassword" type="password" autocomplete="current-password">
@@ -52,53 +86,92 @@ canvas{max-height:300px}
 
 <div id="dashScreen" class="hide">
 <header>
-  <div><h1>Unlimited Roofing — Rep Performance</h1><div class="sub">All-time: historical (legacy forms) + live (rep tracker app)</div></div>
+  <div><h1>Unlimited Roofing</h1><div class="sub">Rep Performance Dashboard</div></div>
 </header>
 <main>
+
+  <div class="card controlbar">
+    <div>
+      <label>Branch</label>
+      <!-- ADJUST: branch list — add an <option> per branch as new branches are created -->
+      <select id="branchSelect" onchange="refresh()">
+        <option value="All">All branches</option>
+        <option value="Roanoke">Roanoke</option>
+      </select>
+    </div>
+    <div class="presets" id="presetButtons"></div>
+    <div>
+      <label>Custom range</label>
+      <div style="display:flex;gap:6px">
+        <input type="date" id="customStart">
+        <input type="date" id="customEnd">
+        <button class="ghost" onclick="applyCustom()">Apply</button>
+      </div>
+    </div>
+    <div class="small" id="rangeLabel" style="margin-left:auto;align-self:center"></div>
+  </div>
+
+  <div class="card">
+    <h2>Yearly Goals (YTD)</h2>
+    <div class="dialrow" id="yearlyDials"></div>
+  </div>
+
+  <div class="card">
+    <h2>Rate KPIs — Selected Range</h2>
+    <div class="dialrow" id="kpiDials"></div>
+  </div>
+
   <div class="grid2">
     <div class="card">
-      <h2>Combined Metrics — All-Time</h2>
+      <h2>Scorecards — Selected Range</h2>
       <div id="scorecards" class="scorecards"></div>
     </div>
     <div class="card">
-      <h2>Revenue Trend (Historical → Live)</h2>
+      <h2>Revenue Trend</h2>
       <canvas id="chartRevenue"></canvas>
-      <p class="small">Historical period ends, live period (rep tracker app) begins where the gold line starts.</p>
     </div>
   </div>
 
   <div class="card">
-    <h2>Rep Comparison</h2>
+    <h2>Rep Comparison (value, delta vs prior equal period)</h2>
     <div class="tablewrap"><table id="repTable"></table></div>
   </div>
 
-  <div class="card">
-    <h2>Lead Source Comparison</h2>
-    <div class="tablewrap"><table id="leadSourceTable"></table></div>
+  <div class="grid2">
+    <div class="card">
+      <h2>Lead Source</h2>
+      <div class="tablewrap"><table id="leadSourceTable"></table></div>
+    </div>
+    <div class="card">
+      <h2>Squares Sold vs Gross Revenue by Source</h2>
+      <canvas id="chartBubble"></canvas>
+      <p class="small">Dashed lines: avg contract price (horizontal), median squares sold (vertical).</p>
+    </div>
   </div>
 
-  <div class="grid3">
-    <div class="card">
-      <h2>Doors Knocked vs. Close Rate (by rep)</h2>
-      <canvas id="chartDoorsVsClose"></canvas>
-    </div>
-    <div class="card">
-      <h2>Commission Paid by Rep (live period only)</h2>
-      <canvas id="chartCommission"></canvas>
-      <p class="small">No commission data exists for the historical period — the legacy form never tracked it per-deal.</p>
-    </div>
+  <div class="card">
+    <h2>Doors Funnel</h2>
+    <div class="funnel" id="doorsFunnel"></div>
   </div>
+
+  <div class="card">
+    <h2>Commission by Rep (selected range)</h2>
+    <canvas id="chartCommission"></canvas>
+  </div>
+
 </main>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <script>
-const DEFAULT_API = 'https://script.google.com/macros/s/AKfycbzbP5fU26Zt1HAYCl4UyYnaEMADX5Pp52JTEJYuORMgkRqCUTRpmfiuAE02UKUGDelu/exec';
+const DEFAULT_API = 'https://script.google.com/macros/s/AKfycbzbP5fU26Zt1HAYCl4UyYnaEMADX5Pp52JTEJYuORMgkRqCUTRpmfiuAE02UKUGDelu/exec'; // ADJUST: update if the Apps Script deployment URL ever changes
 const API = localStorage.getItem('roofing_api_url') || DEFAULT_API;
 const $ = id => document.getElementById(id);
 
 let TOKEN = localStorage.getItem('roofing_token') || '';
 let ME = JSON.parse(localStorage.getItem('roofing_me') || 'null');
+let DATA = null;
+let ACTIVE_PRESET = 'This month';
 
 async function post(action, payload = {}) {
   const body = JSON.stringify(Object.assign({ action, token: TOKEN }, payload));
@@ -122,151 +195,250 @@ async function login() {
   } catch (e) { $('loginError').textContent = e.message || 'Cannot reach API'; }
 }
 
-const BLUE = '#4a90d9', GOLD = '#d49b2a', GREEN = '#3fae6f', RED = '#d96a6a', TEAL = '#36c2c2';
+const BLUE = 'var(--blue)'.trim(), GOLD = '#FFBB00', GOLD_DARK = '#C98A00', GREEN = '#2e9e52', RED = '#d64545', BLUE_HEX = '#057EFB';
 const money = n => '$' + Math.round(n || 0).toLocaleString();
-const pct = (a, b) => b ? Math.round(a / b * 1000) / 10 : 0;
+const pct1 = (a, b) => b ? Math.round(a / b * 1000) / 10 : 0;
+const goalPct = (v, t) => t ? Math.max(0, Math.min(100, Math.round((v || 0) / t * 100))) : 0;
 
-function combine(hist, live) {
-  const a = {}; const keys = ['leadsIssued','demos','noOp','sits','oneCallClose','followUpContracts','roofingAgreements','grossRevenue','turnDownCount','turnDownRevenue','doorsKnocked','commission','dispositionRows','signed'];
-  keys.forEach(k => a[k] = (hist[k] || 0) + (live[k] || 0));
-  return a;
+function iso(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+
+// ADJUST: date-range presets shown as buttons in the control bar
+const PRESETS = {
+  'This month': () => { const d = new Date(); return { start: iso(new Date(d.getFullYear(), d.getMonth(), 1)), end: iso(d) }; },
+  'Last 14 days': () => { const e = new Date(); const s = new Date(e); s.setDate(e.getDate() - 13); return { start: iso(s), end: iso(e) }; },
+  'YTD': () => { const e = new Date(); return { start: e.getFullYear() + '-01-01', end: iso(e) }; },
+};
+
+function renderPresetButtons() {
+  $('presetButtons').innerHTML = Object.keys(PRESETS).map(name =>
+    `<button class="${name === ACTIVE_PRESET ? 'active' : 'ghost'}" onclick="usePreset('${name}')">${name}</button>`).join('');
 }
-function sumAgg(rows) {
-  const a = { leadsIssued:0, demos:0, noOp:0, sits:0, oneCallClose:0, followUpContracts:0, roofingAgreements:0, grossRevenue:0, turnDownCount:0, turnDownRevenue:0, doorsKnocked:0, commission:0, dispositionRows:0, signed:0 };
-  rows.forEach(r => Object.keys(a).forEach(k => a[k] += r[k] || 0));
-  return a;
+function usePreset(name) {
+  ACTIVE_PRESET = name;
+  const { start, end } = PRESETS[name]();
+  $('customStart').value = start; $('customEnd').value = end;
+  renderPresetButtons();
+  refresh();
+}
+function applyCustom() {
+  ACTIVE_PRESET = '';
+  renderPresetButtons();
+  refresh();
 }
 
-function buildScorecards(hist, live) {
-  const t = combine(sumAgg(hist.byRep), sumAgg(live.byRep));
+function gauge(pctValue, opts) {
+  opts = opts || {};
+  const r = 46, c = 2 * Math.PI * r, stroke = 12;
+  const v = Math.max(0, Math.min(100, pctValue || 0));
+  const off = c * (1 - v / 100);
+  const color = opts.color || BLUE_HEX;
+  return `<div class="gauge-wrap">
+    <svg viewBox="0 0 120 120" width="${opts.size || 120}" height="${opts.size || 120}">
+      <circle cx="60" cy="60" r="${r}" stroke="var(--gauge-track)" stroke-width="${stroke}" fill="none"/>
+      <circle cx="60" cy="60" r="${r}" stroke="${color}" stroke-width="${stroke}" fill="none"
+        stroke-dasharray="${c}" stroke-dashoffset="${off}" stroke-linecap="round" transform="rotate(-90 60 60)"/>
+      <text x="60" y="58" text-anchor="middle" font-size="22" font-weight="700" fill="#333">${Math.round(v)}%</text>
+      <text x="60" y="76" text-anchor="middle" font-size="9" fill="#7799AD">${opts.sub || ''}</text>
+    </svg>
+    <div class="gauge-label">${opts.label || ''}</div>
+  </div>`;
+}
+
+function rates(t) {
+  return {
+    sitRate: pct1(t.qualifiedSits, t.leadsIssued),
+    demoRate: pct1(t.demos, t.qualifiedSits),
+    closeRate: pct1(t.roofingAgreements, t.demos),
+    occRate: pct1(t.oneCallCloses, t.qualifiedSits),
+  };
+}
+
+function buildYearlyDials(ytd, goals) {
+  // ADJUST: yearly goal dials — gold arc, donation dial uses the deeper gold so it reads distinct
+  $('yearlyDials').innerHTML = [
+    gauge(goalPct(ytd.squaresSold, goals.squaresTarget), { color: GOLD, label: 'Squares Sold', sub: `${Math.round(ytd.squaresSold)} / ${goals.squaresTarget}` }),
+    gauge(goalPct(ytd.grossRevenue, goals.revenueTarget), { color: GOLD, label: 'Total Revenue', sub: `${money(ytd.grossRevenue)} / ${money(goals.revenueTarget)}` }),
+    gauge(goalPct(ytd.contracts, goals.contractsTarget), { color: GOLD, label: 'Total Contracts', sub: `${ytd.contracts} / ${goals.contractsTarget}` }),
+    gauge(goalPct(goals.donatedToDate, goals.donationGoal), { color: GOLD_DARK, label: 'Donated', sub: `${money(goals.donatedToDate)} / ${money(goals.donationGoal)}` }),
+  ].join('');
+}
+
+function buildKpiDials(totals, goals) {
+  // ADJUST: which four rate KPIs show as dials, and their targets (demoRateTarget/occTarget from Goals tab)
+  const r = rates(totals);
+  $('kpiDials').innerHTML = [
+    gauge(r.sitRate, { color: BLUE_HEX, label: 'Sit Rate', sub: `${r.sitRate}%` }),
+    gauge(r.demoRate, { color: BLUE_HEX, label: 'Demo Rate', sub: `target ${Math.round((goals.demoRateTarget || 0.8) * 100)}%` }),
+    gauge(r.closeRate, { color: BLUE_HEX, label: 'Close Rate', sub: `${r.closeRate}%` }),
+    gauge(r.occRate, { color: BLUE_HEX, label: 'One Call Close %', sub: `target ${Math.round((goals.occTarget || 0.3) * 100)}%` }),
+  ].join('');
+}
+
+function buildScorecards(t) {
+  const r = rates(t);
   const netRevenue = t.grossRevenue - t.turnDownRevenue;
   const avgContract = t.roofingAgreements ? Math.round(t.grossRevenue / t.roofingAgreements) : 0;
   const cards = [
     ['Leads Issued', t.leadsIssued, null],
-    ['Leads Demo\'d', t.demos, pct(t.demos, t.leadsIssued) + '% demo rate'],
-    ['No Ops', t.noOp, pct(t.noOp, t.leadsIssued) + '% of leads'],
-    ['Qualified Sits', t.sits, pct(t.sits, t.demos) + '% of demos'],
-    ['One Call Closes', t.oneCallClose, pct(t.oneCallClose, t.roofingAgreements) + '% of closes'],
-    ['Follow-Up Contracts', t.followUpContracts, pct(t.followUpContracts, t.roofingAgreements) + '% of closes'],
-    ['Roofing Agreements', t.roofingAgreements, pct(t.roofingAgreements, t.demos) + '% close rate'],
-    ['Turn-down #', t.turnDownCount, pct(t.turnDownCount, t.roofingAgreements + t.turnDownCount) + '% TD rate'],
+    ['Qualified Sits', t.qualifiedSits, r.sitRate + '% sit rate'],
+    ['Demos', t.demos, r.demoRate + '% demo rate'],
+    ['Roofing Agreements', t.roofingAgreements, r.closeRate + '% close rate'],
+    ['One Call Closes', t.oneCallCloses, r.occRate + '% of sits'],
+    ['Follow-Up Contracts', t.followUpContracts, null],
+    ['Squares Sold', Math.round(t.squaresSold), null],
     ['Gross Revenue', money(t.grossRevenue), null],
-    ['Avg Contract Price', money(avgContract), null],
-    ['Turn-down Revenue', money(t.turnDownRevenue), null],
     ['Net Revenue', money(netRevenue), null],
+    ['Avg Contract Price', money(avgContract), null],
+    ['Turn-down #', t.turnDownCount, null],
     ['Doors Knocked', t.doorsKnocked, null],
-    ['Commission Paid (live)', money(t.commission), null],
+    ['Commission Paid', money(t.commission), null],
   ];
   $('scorecards').innerHTML = cards.map(([label, val, rate]) =>
     `<div class="score"><b>${val}</b><span>${label}</span>${rate !== null ? `<span class="rate">${rate}</span>` : ''}</div>`).join('');
 }
 
-function buildRevenueTrend(hist, live) {
-  const histPoints = hist.byDate.slice().sort((a, b) => a.date < b.date ? -1 : 1).map(d => ({ x: d.date, y: d.grossRevenue }));
-  const livePoints = live.byDate.slice().sort((a, b) => a.date < b.date ? -1 : 1).map(d => ({ x: d.date, y: d.grossRevenue }));
-  new Chart($('chartRevenue'), {
-    type: 'line',
-    data: { datasets: [
-      { label: 'Historical', data: histPoints, borderColor: TEAL, backgroundColor: TEAL, tension: 0.2, pointRadius: 0 },
-      { label: 'Live (rep tracker app)', data: livePoints, borderColor: GOLD, backgroundColor: GOLD, tension: 0.2, pointRadius: 2 },
-    ]},
-    options: { parsing: false, scales: { x: { type: 'category', ticks: { color: '#9fb0c7' } }, y: { beginAtZero: true, ticks: { color: '#9fb0c7' } } },
-      plugins: { legend: { labels: { color: '#fff' } } } },
-  });
+function deltaHtml(curr, prev, fmt) {
+  fmt = fmt || (v => v);
+  const diff = curr - prev;
+  const dir = diff > 0 ? 'up' : diff < 0 ? 'down' : 'flat';
+  const arrow = dir === 'up' ? '▲' : dir === 'down' ? '▼' : '•';
+  return `<div>${fmt(curr)}</div><div class="delta delta-${dir}">${arrow} ${fmt(Math.abs(diff))}</div>`;
 }
 
-function repTableHtml(hist, live) {
-  const reps = Array.from(new Set([...hist.byRep.map(r => r.rep), ...live.byRep.map(r => r.rep)])).sort();
-  const hm = Object.fromEntries(hist.byRep.map(r => [r.rep, r])), lm = Object.fromEntries(live.byRep.map(r => [r.rep, r]));
+function repTableHtml(current, compare) {
+  const reps = current.byRep.map(r => r.rep).sort();
+  const cm = Object.fromEntries(compare.byRep.map(r => [r.rep, r]));
+  const blank = { leadsIssued: 0, qualifiedSits: 0, demos: 0, roofingAgreements: 0, oneCallCloses: 0, followUpContracts: 0, grossRevenue: 0, turnDownCount: 0, turnDownRevenue: 0, doorsKnocked: 0, commission: 0, squaresSold: 0 };
   const metrics = [
     ['Doors Knocked', r => r.doorsKnocked, v => v],
     ['Leads Issued', r => r.leadsIssued, v => v],
+    ['Qualified Sits', r => r.qualifiedSits, v => v],
     ['Demos', r => r.demos, v => v],
-    ['No Ops', r => r.noOp, v => v],
-    ['Qualified Sits', r => r.sits, v => v],
-    ['One Call Close', r => r.oneCallClose, v => v],
-    ['Follow Up Contracts', r => r.followUpContracts, v => v],
     ['Roofing Agreements', r => r.roofingAgreements, v => v],
-    ['Close Rate', r => pct(r.signed, r.dispositionRows), v => v + '%'],
-    ['Turn-down #', r => r.turnDownCount, v => v],
-    ['Turn-down Revenue', r => r.turnDownRevenue, money],
+    ['One Call Closes', r => r.oneCallCloses, v => v],
+    ['Close Rate %', r => pct1(r.roofingAgreements, r.demos), v => v + '%'],
+    ['Squares Sold', r => Math.round(r.squaresSold), v => v],
     ['Gross Revenue', r => r.grossRevenue, money],
-    ['Net Revenue', r => r.grossRevenue - r.turnDownRevenue, money],
-    ['Commission (live)', r => r.commission, money],
+    ['Commission', r => r.commission, money],
   ];
   const head = `<thead><tr><th>Metric</th>${reps.map(r => `<th>${r}</th>`).join('')}</tr></thead>`;
   const body = metrics.map(([label, getter, fmt]) => {
     const cells = reps.map(rep => {
-      const h = hm[rep] || {}, l = lm[rep] || {};
-      const combined = combine(h, l);
-      return `<td>${fmt(getter(combined))}</td>`;
+      const c = current.byRep.find(r => r.rep === rep) || blank;
+      const p = cm[rep] || blank;
+      return `<td>${deltaHtml(getter(c), getter(p), fmt)}</td>`;
     }).join('');
     return `<tr><td>${label}</td>${cells}</tr>`;
   }).join('');
   return head + '<tbody>' + body + '</tbody>';
 }
 
-function leadSourceTableHtml(hist, live) {
-  const sources = Array.from(new Set([...hist.byLeadSource.map(s => s.leadSource), ...live.byLeadSource.map(s => s.leadSource)])).sort();
-  const hm = Object.fromEntries(hist.byLeadSource.map(s => [s.leadSource, s])), lm = Object.fromEntries(live.byLeadSource.map(s => [s.leadSource, s]));
-  const metrics = [
-    ['Appointments', r => r.leadsIssued, v => v],
-    ['Signed Count', r => r.signed, v => v],
-    ['Close Rate', r => pct(r.signed, r.leadsIssued), v => v + '%'],
-    ['Gross Revenue', r => r.grossRevenue, money],
-    ['Avg Contract Price', r => r.roofingAgreements ? Math.round(r.grossRevenue / r.roofingAgreements) : 0, money],
+function leadSourceTableHtml(byLeadSource) {
+  const rows = byLeadSource.slice().sort((a, b) => b.grossRevenue - a.grossRevenue);
+  const head = `<thead><tr><th>Source</th><th>Leads Issued</th><th>Sits</th><th>Demos</th><th>Closes</th><th>Close Rate</th><th>Gross Revenue</th><th>Avg Contract</th><th>Squares</th></tr></thead>`;
+  const body = rows.map(r => {
+    const avg = r.roofingAgreements ? Math.round(r.grossRevenue / r.roofingAgreements) : 0;
+    return `<tr><td>${r.leadSource}</td><td>${r.leadsIssued}</td><td>${r.qualifiedSits}</td><td>${r.demos}</td><td>${r.roofingAgreements}</td><td>${pct1(r.roofingAgreements, r.demos)}%</td><td>${money(r.grossRevenue)}</td><td>${money(avg)}</td><td>${Math.round(r.squaresSold)}</td></tr>`;
+  }).join('');
+  return head + '<tbody>' + body + '</tbody>';
+}
+
+function median(nums) {
+  const s = nums.slice().sort((a, b) => a - b);
+  if (!s.length) return 0;
+  const mid = Math.floor(s.length / 2);
+  return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+}
+
+function buildBubble(byLeadSource, totals) {
+  const points = byLeadSource.map(r => ({ source: r.leadSource, x: r.squaresSold, y: r.grossRevenue, r: 6 + Math.min(14, r.roofingAgreements) }));
+  const avgContract = totals.roofingAgreements ? totals.grossRevenue / totals.roofingAgreements : 0;
+  const medSquares = median(byLeadSource.map(r => r.squaresSold));
+  const refLines = {
+    id: 'refLines',
+    afterDatasetsDraw(chart) {
+      const { ctx, chartArea, scales } = chart;
+      ctx.save(); ctx.strokeStyle = '#7799AD'; ctx.setLineDash([5, 4]); ctx.lineWidth = 1;
+      const y = scales.y.getPixelForValue(avgContract);
+      ctx.beginPath(); ctx.moveTo(chartArea.left, y); ctx.lineTo(chartArea.right, y); ctx.stroke();
+      const x = scales.x.getPixelForValue(medSquares);
+      ctx.beginPath(); ctx.moveTo(x, chartArea.top); ctx.lineTo(x, chartArea.bottom); ctx.stroke();
+      ctx.restore();
+    },
+  };
+  if (window._bubbleChart) window._bubbleChart.destroy();
+  window._bubbleChart = new Chart($('chartBubble'), {
+    type: 'bubble',
+    data: { datasets: [{ label: 'Lead Source', data: points, backgroundColor: 'rgba(5,126,251,.55)' }] },
+    options: {
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `${points[ctx.dataIndex].source}: ${points[ctx.dataIndex].x} sq, ${money(points[ctx.dataIndex].y)}` } } },
+      scales: { x: { title: { display: true, text: 'Squares sold' } }, y: { title: { display: true, text: 'Gross revenue' }, beginAtZero: true } },
+    },
+    plugins: [refLines],
+  });
+}
+
+function buildRevenueTrend(byDate) {
+  // CONFIRM: v1 colored historical vs live separately; v2's unified per-window aggregation
+  // (Code.gs aggregateWindow_) merges both sources into one byDate series, so this renders
+  // as a single line. Revisit if the historical/live color split is still wanted.
+  const points = byDate.slice().sort((a, b) => a.date < b.date ? -1 : 1).map(d => ({ x: d.date, y: d.grossRevenue }));
+  if (window._revChart) window._revChart.destroy();
+  window._revChart = new Chart($('chartRevenue'), {
+    type: 'line',
+    data: { datasets: [{ label: 'Gross Revenue', data: points, borderColor: BLUE_HEX, backgroundColor: BLUE_HEX, tension: 0.2, pointRadius: 2 }] },
+    options: { parsing: false, scales: { x: { type: 'category' }, y: { beginAtZero: true } }, plugins: { legend: { display: false } } },
+  });
+}
+
+function buildDoorsFunnel(t) {
+  const stages = [
+    ['Doors', t.doorsKnocked],
+    ['Leads', t.leadsIssued],
+    ['Qualified Sits', t.qualifiedSits],
+    ['Demos', t.demos],
+    ['Closes', t.roofingAgreements],
   ];
-  const head = `<thead><tr><th>Metric</th>${sources.map(s => `<th>${s}</th>`).join('')}</tr></thead>`;
-  const body = metrics.map(([label, getter, fmt]) => {
-    const cells = sources.map(s => {
-      const h = hm[s] || {}, l = lm[s] || {};
-      const combined = combine(h, l);
-      return `<td>${fmt(getter(combined))}</td>`;
-    }).join('');
-    return `<tr><td>${label}</td>${cells}</tr>`;
+  $('doorsFunnel').innerHTML = stages.map(([label, val], i) => {
+    const arrow = i === 0 ? '' : `<span class="arrow">&rarr;<br><span class="convpct">${pct1(val, stages[i - 1][1])}%</span></span>`;
+    return `${arrow}<div class="stage"><b>${val}</b><span>${label}</span></div>`;
   }).join('');
-  return head + '<tbody>' + body + '</tbody>';
 }
 
-function buildDoorsVsClose(hist, live) {
-  const reps = Array.from(new Set([...hist.byRep.map(r => r.rep), ...live.byRep.map(r => r.rep)]));
-  const hm = Object.fromEntries(hist.byRep.map(r => [r.rep, r])), lm = Object.fromEntries(live.byRep.map(r => [r.rep, r]));
-  const points = reps.map(rep => {
-    const c = combine(hm[rep] || {}, lm[rep] || {});
-    return { rep, x: c.doorsKnocked, y: pct(c.signed, c.dispositionRows) };
-  });
-  new Chart($('chartDoorsVsClose'), {
-    type: 'scatter',
-    data: { datasets: [{ label: 'Rep', data: points, backgroundColor: TEAL, pointRadius: 6 }] },
-    options: { plugins: { tooltip: { callbacks: { label: ctx => `${points[ctx.dataIndex].rep}: ${ctx.parsed.x} doors, ${ctx.parsed.y}% close` } }, legend: { display: false } },
-      scales: { x: { title: { display: true, text: 'Doors knocked', color: '#9fb0c7' }, ticks: { color: '#9fb0c7' } },
-        y: { title: { display: true, text: 'Close rate %', color: '#9fb0c7' }, beginAtZero: true, ticks: { color: '#9fb0c7' } } } },
-  });
-}
-
-function buildCommission(live) {
-  const reps = live.byRep.filter(r => r.commission).sort((a, b) => b.commission - a.commission);
-  new Chart($('chartCommission'), {
+function buildCommission(byRep) {
+  const reps = byRep.filter(r => r.commission).sort((a, b) => b.commission - a.commission);
+  if (window._commChart) window._commChart.destroy();
+  window._commChart = new Chart($('chartCommission'), {
     type: 'bar',
-    data: { labels: reps.map(r => r.rep), datasets: [{ label: 'Commission $', data: reps.map(r => r.commission), backgroundColor: GREEN }] },
-    options: { indexAxis: 'y', plugins: { legend: { display: false } },
-      scales: { x: { beginAtZero: true, ticks: { color: '#9fb0c7' } }, y: { ticks: { color: '#9fb0c7' } } } },
+    data: { labels: reps.map(r => r.rep), datasets: [{ label: 'Commission $', data: reps.map(r => r.commission), backgroundColor: BLUE_HEX }] },
+    options: { indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true } } },
   });
+}
+
+async function refresh() {
+  const start = $('customStart').value, end = $('customEnd').value, branch = $('branchSelect').value;
+  if (!start || !end) return;
+  try {
+    DATA = await post('adminDashboardData', { start, end, branch });
+    $('rangeLabel').textContent = `${start} → ${end} (vs ${DATA.compareStart} → ${DATA.compareEnd})`;
+    buildYearlyDials(DATA.ytd, DATA.goals);
+    buildKpiDials(DATA.current.totals, DATA.goals);
+    buildScorecards(DATA.current.totals);
+    buildRevenueTrend(DATA.current.byDate);
+    $('repTable').innerHTML = repTableHtml(DATA.current, DATA.compare);
+    $('leadSourceTable').innerHTML = leadSourceTableHtml(DATA.current.byLeadSource);
+    buildBubble(DATA.current.byLeadSource, DATA.current.totals);
+    buildDoorsFunnel(DATA.current.totals);
+    buildCommission(DATA.current.byRep);
+  } catch (e) {
+    $('dashScreen').innerHTML = `<header><h1>Error</h1></header><main><div class="card error">${e.message}</div></main>`;
+  }
 }
 
 async function boot() {
   $('loginScreen').classList.add('hide'); $('dashScreen').classList.remove('hide');
-  try {
-    const json = await post('adminDashboardData');
-    buildScorecards(json.historical, json.live);
-    buildRevenueTrend(json.historical, json.live);
-    $('repTable').innerHTML = repTableHtml(json.historical, json.live);
-    $('leadSourceTable').innerHTML = leadSourceTableHtml(json.historical, json.live);
-    buildDoorsVsClose(json.historical, json.live);
-    buildCommission(json.live);
-  } catch (e) {
-    $('dashScreen').innerHTML = `<header><h1>Error</h1></header><main><div class="card error">${e.message}</div></main>`;
-  }
+  renderPresetButtons();
+  usePreset('This month');
 }
 
 if (TOKEN && ME) boot();
