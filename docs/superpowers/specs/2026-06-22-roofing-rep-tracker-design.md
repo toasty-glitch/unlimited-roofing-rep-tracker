@@ -50,7 +50,7 @@ Signed (Y/N/Type), No-Sign Reason, Contract Amount, Cash Amount, Down Payment,
 Applied Financing (Y/N), Financing Result, Financing Source, Approved Amount,
 Denied Amount, Square Count, Cost Per Square, Commission Rate, Roof Commission $,
 Manager-Approved Below Floor (Y/N), Gutters Included (Y/N), Gutter LF, Gutter $/LF,
-Siding Included (Y/N), Siding Sqft, Added Work Amount, Flat-Rate Commission $,
+Siding Included (Y/N), Siding Sqft, Siding $/Sqft, Added Work Amount, Flat-Rate Commission $,
 Total Commission $, CRMX Screenshot Uploaded (Y/N), Appointment Confirmed (Y/N),
 Qualified Sit (Y/N)
 ```
@@ -84,8 +84,9 @@ system required.
      Follow-up Needed) submit in two taps with a short reason field — no further detail
      required.
    - "Contract Signed" expands inline: price/sq → **live commission preview** updates
-     as the rep types → financing block (only shown if financing applied) → gutters/
-     siding/added-work block → CRMX-upload checkbox → save.
+     as the rep types → financing block (only shown if financing applied) → gutters
+     (LF + $/LF) / siding (sqft + $/sqft) / added-work block → CRMX-upload checkbox →
+     save.
    - If cost/sq < $580, the row still saves (Roof Commission $ left blank, manager-
      approval-pending flag set); the rep sees a "needs manager approval" confirmation
      instead of a normal save confirmation. Entry stays flagged and visible on the
@@ -108,7 +109,9 @@ function roofCommissionRate_(costPerSquare) {
 }
 const FLAT_RATE = 0.10; // gutters, siding, added work — always, no exceptions
 ```
-- Roof commission = roof-portion contract $ × `roofCommissionRate_(costPerSquare)`
+- Roof commission = roof-portion contract $ (`Contract Amount`) × `roofCommissionRate_(costPerSquare)`
+- Gutters $ = `Gutter LF` × `Gutter $/LF`; Siding $ = `Siding Sqft` × `Siding $/Sqft` (rep-entered per job,
+  mirrors the gutters pattern — siding cost varies by job/material, no fixed company rate)
 - Flat-rate commission = (gutters $ + siding $ + added-work $) × `FLAT_RATE`
 - Total commission = roof commission + flat-rate commission
 - Below-$580: no auto rate computed; admin sets the rate manually at approval time via
