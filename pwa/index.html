@@ -1,0 +1,160 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#155e63">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Unlimited Roofing Rep Tracker</title>
+<style>
+:root{--teal:#155e63;--ink:#172126;--muted:#607178;--paper:#fff;--bg:#f6f7f3;--line:#dbe1dc;--gold:#d49b2a;--red:#b73737;--green:#237a52;--blue:#315f9b;--shadow:0 2px 10px rgba(23,33,38,.08)}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:Arial,Helvetica,sans-serif;padding-bottom:78px}button,input,select,textarea{font:inherit}button{border:0;border-radius:8px;padding:11px 12px;background:var(--teal);color:#fff;font-weight:700;cursor:pointer}button.secondary{background:#fff;color:var(--teal);border:1px solid var(--teal)}button.warn{background:var(--red)}button.gold{background:var(--gold);color:#1b1b1b}button:disabled{opacity:.55;cursor:not-allowed}input,select,textarea{width:100%;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink);padding:10px;font-size:16px}textarea{min-height:70px;resize:vertical}label{display:block;margin:10px 0 4px;font-size:12px;font-weight:700;color:var(--muted)}header{position:sticky;top:0;z-index:10;background:var(--teal);color:#fff;padding:12px 14px;display:flex;justify-content:space-between;gap:12px;align-items:center;box-shadow:var(--shadow)}header h1{font-size:17px;margin:0}.who{font-size:12px;opacity:.9;text-align:right;line-height:1.3}main{max-width:760px;margin:0 auto;padding:12px}.card{background:var(--paper);border:1px solid var(--line);border-radius:8px;margin-bottom:12px;padding:14px;box-shadow:var(--shadow)}.card h2{margin:0 0 10px;color:var(--teal);font-size:16px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}.hide{display:none!important}.small{font-size:12px;color:var(--muted)}.error{color:var(--red)}.ok{color:var(--green)}.metric{background:#eef3f0;border:1px solid var(--line);border-radius:8px;padding:10px;text-align:center}.metric b{display:block;font-size:20px;color:var(--teal)}.metric span{font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase}.stat{display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line);padding:8px 0;font-size:14px}.stat:last-child{border-bottom:0}.pill{display:inline-block;border-radius:99px;background:#e8f1ef;color:var(--teal);padding:3px 8px;font-size:11px;font-weight:700}.pending{border-left:4px solid var(--gold)}.bad{border-left:4px solid var(--red)}.good{border-left:4px solid var(--green)}.tabs{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);display:flex;z-index:20;padding-bottom:env(safe-area-inset-bottom)}.tabs button{flex:1;background:#fff;color:var(--muted);border-radius:0;padding:9px 2px;font-size:11px}.tabs button.active{color:var(--teal);box-shadow:inset 0 3px 0 var(--teal)}.tap{height:132px;border-radius:8px;background:linear-gradient(135deg,var(--teal),#287b68);display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;user-select:none}.tap b{font-size:44px}.tap span{font-size:13px;opacity:.92}.toast{position:fixed;left:50%;top:64px;transform:translateX(-50%);background:var(--ink);color:#fff;border-radius:8px;padding:10px 14px;max-width:90vw;z-index:99;opacity:0;pointer-events:none;transition:opacity .2s}.toast.show{opacity:1}.entry{border:1px solid var(--line);border-radius:8px;padding:10px;margin:8px 0;background:#fff}.entry .top{display:flex;justify-content:space-between;gap:8px}.actions{display:flex;gap:8px;margin-top:10px}.actions button{flex:1}.readonly{background:#f3f4f1}.config{font-family:Consolas,monospace;font-size:12px;word-break:break-all}.login-wrap{max-width:420px;margin:8vh auto 0;padding:12px}.brand{text-align:center;margin-bottom:12px}.brand h1{font-size:26px;margin:0;color:var(--teal)}.brand p{margin:4px 0 0;color:var(--muted);font-size:13px}@media(max-width:560px){.grid,.grid3{grid-template-columns:1fr}.actions{flex-direction:column}main{padding:10px}.card{padding:12px}}
+</style>
+</head>
+<body>
+<div id="loginScreen" class="login-wrap">
+  <div class="brand"><h1>Unlimited Roofing</h1><p>Rep Tracker</p></div>
+  <div class="card">
+    <h2>Sign In</h2>
+    <label>Name</label><input id="loginName" autocomplete="username">
+    <label>Password</label><input id="loginPassword" type="password" autocomplete="current-password">
+    <button onclick="login()">Sign In</button>
+    <p id="loginError" class="small error"></p>
+  </div>
+  <div class="card">
+    <h2>Setup</h2>
+    <p class="small">Use once after deploying Apps Script. Sign in with a seeded admin name and your temporary PIN.</p>
+    <label>Apps Script API URL</label><input id="apiUrl" class="config" placeholder="https://script.google.com/macros/s/.../exec">
+    <button class="secondary" onclick="saveApiUrl()">Save API URL</button>
+    <label>Admin name</label><input id="bootName" placeholder="Ted Beedle">
+    <label>New password</label><input id="bootPassword" type="password">
+    <label>Admin PIN</label><input id="bootPin" type="password">
+    <button class="gold" onclick="bootstrapAdmin()">Bootstrap Admin</button>
+    <p class="small">Current API: <span id="apiLabel" class="config"></span></p>
+  </div>
+</div>
+
+<div id="appScreen" class="hide">
+  <header><h1 id="viewTitle">Today</h1><div id="who" class="who"></div></header>
+  <main>
+    <section id="view-today">
+      <div class="card">
+        <h2>Doors Knocked</h2>
+        <div class="tap" onclick="tapDoor()"><b id="doorCount">0</b><span>Tap for each door</span></div>
+        <div class="actions"><button class="secondary" onclick="syncDoors()">Sync Doors</button><button class="secondary" onclick="resetLocalDoors()">Reset Local Count</button></div>
+        <p class="small">Door taps queue locally and sync in batches when you have signal.</p>
+      </div>
+      <div class="card"><h2>Today's Numbers</h2><div id="todayMetrics" class="grid3"></div><div id="todayStats"></div></div>
+      <div class="card"><h2>Today's Appointments</h2><div id="todayList" class="small">Loading...</div></div>
+    </section>
+
+    <section id="view-log" class="hide">
+      <div class="card">
+        <h2 id="formTitle">Log Appointment</h2>
+        <input id="entryId" type="hidden">
+        <div class="grid"><div><label>Date</label><input id="date" type="date"></div><div><label>Lead Source</label><select id="leadSource"></select></div></div>
+        <div class="grid"><div><label>Customer Name</label><input id="customerName"></div><div><label>Customer Phone</label><input id="customerPhone" inputmode="tel"></div></div>
+        <label>Appointment Outcome</label><select id="outcome" onchange="renderOutcomeFields()"></select>
+        <label><input id="presented" type="checkbox" style="width:auto"> Presented price/products/company and spent about an hour</label>
+        <label><input id="appointmentConfirmed" type="checkbox" style="width:auto"> Appointment confirmed</label>
+        <label><input id="qualifiedSit" type="checkbox" style="width:auto"> Qualified sit</label>
+
+        <div id="nonSaleFields">
+          <label id="reasonLabel">Reason / Notes</label><textarea id="outOfScopeReason"></textarea>
+          <label>Follow-up or Reschedule Date</label><input id="followUpDate" type="date">
+          <label>No-Sign Reason</label><select id="noSignReason"></select>
+        </div>
+
+        <div id="saleFields" class="hide">
+          <div class="grid"><div><label>Signed Type</label><select id="signedType"><option>One Call Close</option><option>Follow Up Contract</option><option>Roofing Agreement</option></select></div><div><label>CRMX Screenshot Uploaded</label><select id="crmxUploaded"><option value="Y">Yes</option><option value="N">No</option></select></div></div>
+          <div class="grid3"><div><label>Contract Amount</label><input id="contractAmount" inputmode="decimal" oninput="previewCommission()"></div><div><label>Cash Amount</label><input id="cashAmount" inputmode="decimal"></div><div><label>Down Payment</label><input id="downPayment" inputmode="decimal"></div></div>
+          <div class="grid"><div><label>Square Count</label><input id="squareCount" inputmode="decimal"></div><div><label>Cost Per Square</label><input id="costPerSquare" inputmode="decimal" oninput="previewCommission()"></div></div>
+          <label><input id="appliedFinancing" type="checkbox" style="width:auto" onchange="toggleFinancing()"> Applied for financing</label>
+          <div id="financingFields" class="hide grid3"><div><label>Result</label><select id="financingResult"><option>Approved</option><option>Denied</option><option>Partial</option><option>Pending</option></select></div><div><label>Source</label><input id="financingSource"></div><div><label>Approved Amount</label><input id="approvedAmount" inputmode="decimal"></div><div><label>Denied Amount</label><input id="deniedAmount" inputmode="decimal"></div></div>
+          <label><input id="guttersIncluded" type="checkbox" style="width:auto" onchange="toggleAddOns();previewCommission()"> Gutters included</label>
+          <div id="gutterFields" class="hide grid"><div><label>Gutter LF</label><input id="gutterLf" inputmode="decimal" oninput="previewCommission()"></div><div><label>Gutter $/LF</label><input id="gutterPricePerLf" inputmode="decimal" oninput="previewCommission()"></div></div>
+          <label><input id="sidingIncluded" type="checkbox" style="width:auto" onchange="toggleAddOns();previewCommission()"> Siding included</label>
+          <div id="sidingFields" class="hide grid"><div><label>Siding Sqft</label><input id="sidingSqft" inputmode="decimal" oninput="previewCommission()"></div><div><label>Siding $/Sqft</label><input id="sidingPricePerSqft" inputmode="decimal" oninput="previewCommission()"></div></div>
+          <label>Added Work Amount</label><input id="addedWorkAmount" inputmode="decimal" oninput="previewCommission()">
+          <div id="commissionPreview" class="entry pending">Commission preview appears after price and cost/square.</div>
+        </div>
+
+        <label>Manager Notes</label><textarea id="managerNotes"></textarea>
+        <div class="actions"><button onclick="saveAppointment()">Save Appointment</button><button class="secondary" onclick="clearForm()">Clear</button></div>
+      </div>
+    </section>
+
+    <section id="view-history" class="hide">
+      <div class="card"><h2>History</h2><div class="grid"><div><label>Start</label><input id="histStart" type="date"></div><div><label>End</label><input id="histEnd" type="date"></div></div><button onclick="loadHistory()">Load History</button></div>
+      <div class="card"><div id="historyList" class="small">Choose a date range.</div></div>
+    </section>
+
+    <section id="view-manager" class="hide">
+      <div class="card"><h2>Manager Rollup</h2><div class="grid"><div><label>Start</label><input id="rollStart" type="date"></div><div><label>End</label><input id="rollEnd" type="date"></div></div><button onclick="loadManager()">Refresh Rollup</button></div>
+      <div class="card"><h2>Team</h2><div id="teamSummary"></div><div id="teamRows"></div></div>
+      <div class="card pending"><h2>Pending Below-Floor Approvals</h2><div id="pendingApprovals" class="small">None loaded.</div></div>
+      <div class="card"><h2>Rep Management</h2><div class="grid3"><div><label>Name</label><input id="repName"></div><div><label>Password</label><input id="repPassword"></div><div><label>Role</label><select id="repRole"><option>rep</option><option>admin</option></select></div></div><div class="actions"><button onclick="addRep()">Add Rep</button><button class="secondary" onclick="resetRepPassword()">Reset Password</button><button class="secondary" onclick="loadReps()">Refresh</button></div><div id="repList" class="small"></div></div>
+    </section>
+  </main>
+  <nav class="tabs"><button id="tab-today" class="active" onclick="showView('today')">Today</button><button id="tab-log" onclick="showView('log')">Log</button><button id="tab-history" onclick="showView('history')">History</button><button id="tab-manager" class="hide" onclick="showView('manager')">Manager</button></nav>
+</div>
+<div id="toast" class="toast"></div>
+<script>
+const DEFAULT_API = '';
+const API_KEY = 'roofing_api_url';
+const TOKEN_KEY = 'roofing_token';
+const ME_KEY = 'roofing_me';
+const DOOR_KEY = 'roofing_unsynced_doors';
+let API = localStorage.getItem(API_KEY) || new URLSearchParams(location.search).get('api') || DEFAULT_API;
+if (new URLSearchParams(location.search).get('api')) localStorage.setItem(API_KEY, API);
+let TOKEN = localStorage.getItem(TOKEN_KEY) || '';
+let ME = JSON.parse(localStorage.getItem(ME_KEY) || 'null');
+let META = null;
+const $ = id => document.getElementById(id);
+const money = n => '$' + Number(n || 0).toLocaleString(undefined, {maximumFractionDigits:0});
+const today = () => new Date().toISOString().slice(0,10);
+function toast(msg){const el=$('toast');el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),2600)}
+function apiReady(){ if (!API) { toast('Set the Apps Script API URL first.'); return false; } return true; }
+async function post(action, payload={}){ if(!apiReady()) throw new Error('API URL missing'); const body=JSON.stringify(Object.assign({action,token:TOKEN},payload)); const res=await fetch(API,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body}); const json=await res.json(); if(json.authExpired){logout();throw new Error('Session expired. Sign in again.')} if(!json.ok) throw new Error(json.error||'Request failed'); return json; }
+function updateApiLabel(){ $('apiUrl').value=API||''; $('apiLabel').textContent=API||'not set'; }
+function saveApiUrl(){ API=$('apiUrl').value.trim(); localStorage.setItem(API_KEY,API); updateApiLabel(); toast('API URL saved'); }
+async function bootstrapAdmin(){ try{ saveApiUrl(); const json=await fetch(API,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'bootstrap',name:$('bootName').value.trim(),password:$('bootPassword').value,pin:$('bootPin').value})}).then(r=>r.json()); if(!json.ok) throw new Error(json.error); setSession(json); }catch(e){toast(e.message||'Bootstrap failed')} }
+async function login(){ try{ const json=await fetch(API,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'login',name:$('loginName').value.trim(),password:$('loginPassword').value})}).then(r=>r.json()); if(!json.ok){$('loginError').textContent=json.error||'Login failed';return} setSession(json); }catch(e){$('loginError').textContent=e.message||'Cannot reach API'} }
+function setSession(json){ TOKEN=json.token; ME=json.me; localStorage.setItem(TOKEN_KEY,TOKEN); localStorage.setItem(ME_KEY,JSON.stringify(ME)); boot(); }
+function logout(){ localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(ME_KEY); TOKEN=''; ME=null; $('appScreen').classList.add('hide'); $('loginScreen').classList.remove('hide'); }
+async function boot(){ $('loginScreen').classList.add('hide'); $('appScreen').classList.remove('hide'); $('who').innerHTML=`${ME.name}<br><span onclick="logout()">Sign out</span>`; $('tab-manager').classList.toggle('hide', ME.role!=='admin'); META=await post('meta'); fillOptions(); setDefaultDates(); showView('today'); }
+function fillOptions(){ $('outcome').innerHTML=META.outcomes.map(x=>`<option>${x}</option>`).join(''); $('leadSource').innerHTML=META.leadSources.map(x=>`<option>${x}</option>`).join(''); $('noSignReason').innerHTML=[''].concat(META.noSignReasons).map(x=>`<option>${x}</option>`).join(''); renderOutcomeFields(); }
+function setDefaultDates(){ ['date','histStart','histEnd','rollStart','rollEnd'].forEach(id=>$(id).value=today()); $('doorCount').textContent=localStorage.getItem(DOOR_KEY)||'0'; }
+function showView(name){ ['today','log','history','manager'].forEach(v=>{ $('view-'+v).classList.toggle('hide',v!==name); $('tab-'+v).classList.toggle('active',v===name); }); $('viewTitle').textContent={today:'Today',log:'Log Appointment',history:'History',manager:'Manager'}[name]; if(name==='today') loadToday(); if(name==='manager') loadManager(); }
+function renderOutcomeFields(){ const sale=$('outcome').value==='Contract Signed'; $('saleFields').classList.toggle('hide',!sale); $('nonSaleFields').classList.toggle('hide',sale); previewCommission(); }
+function toggleFinancing(){ $('financingFields').classList.toggle('hide',!$('appliedFinancing').checked); }
+function toggleAddOns(){ $('gutterFields').classList.toggle('hide',!$('guttersIncluded').checked); $('sidingFields').classList.toggle('hide',!$('sidingIncluded').checked); }
+function n(id){ return Number(String($(id).value||'').replace(/[$,]/g,''))||0; }
+function formData(){ return { entryId:$('entryId').value,date:$('date').value,customerName:$('customerName').value.trim(),customerPhone:$('customerPhone').value.trim(),leadSource:$('leadSource').value,outcome:$('outcome').value,presented:$('presented').checked,appointmentConfirmed:$('appointmentConfirmed').checked,qualifiedSit:$('qualifiedSit').checked,outOfScopeReason:$('outOfScopeReason').value,followUpDate:$('followUpDate').value,noSignReason:$('noSignReason').value,signedType:$('signedType').value,crmxUploaded:$('crmxUploaded').value,contractAmount:n('contractAmount'),cashAmount:n('cashAmount'),downPayment:n('downPayment'),squareCount:n('squareCount'),costPerSquare:n('costPerSquare'),appliedFinancing:$('appliedFinancing').checked,financingResult:$('financingResult').value,financingSource:$('financingSource').value,approvedAmount:n('approvedAmount'),deniedAmount:n('deniedAmount'),guttersIncluded:$('guttersIncluded').checked,gutterLf:n('gutterLf'),gutterPricePerLf:n('gutterPricePerLf'),sidingIncluded:$('sidingIncluded').checked,sidingSqft:n('sidingSqft'),sidingPricePerSqft:n('sidingPricePerSqft'),addedWorkAmount:n('addedWorkAmount'),managerNotes:$('managerNotes').value }; }
+function previewCommission(){ if($('outcome').value!=='Contract Signed'){ $('commissionPreview').textContent='No commission for this outcome.'; return; } const d=formData(); let rate=null; if(d.costPerSquare>=630) rate=.10; else if(d.costPerSquare>=600) rate=.075; else if(d.costPerSquare>=580) rate=.05; const flat=(d.guttersIncluded?d.gutterLf*d.gutterPricePerLf*.10:0)+(d.sidingIncluded?d.sidingSqft*d.sidingPricePerSqft*.10:0)+d.addedWorkAmount*.10; const roof=rate===null?0:d.contractAmount*rate; const total=roof+flat; $('commissionPreview').className='entry '+(rate===null?'pending':'good'); $('commissionPreview').innerHTML=rate===null?`Below $580/sq: manager approval required. Flat add-on commission preview: <b>${money(flat)}</b>`:`Roof rate ${(rate*100).toFixed(1)}%; roof commission <b>${money(roof)}</b>; flat add-ons <b>${money(flat)}</b>; total <b>${money(total)}</b>`; }
+async function saveAppointment(){ try{ const data=formData(); const action=data.entryId?'editAppointment':'logAppointment'; const json=await post(action,{data}); toast(json.calc&&json.calc.pendingApproval?'Saved; manager approval required':'Appointment saved'); clearForm(); loadToday(); showView('today'); }catch(e){toast(e.message)} }
+function clearForm(){ ['entryId','customerName','customerPhone','outOfScopeReason','followUpDate','contractAmount','cashAmount','downPayment','squareCount','costPerSquare','financingSource','approvedAmount','deniedAmount','gutterLf','gutterPricePerLf','sidingSqft','sidingPricePerSqft','addedWorkAmount','managerNotes'].forEach(id=>$(id).value=''); ['presented','appointmentConfirmed','qualifiedSit','appliedFinancing','guttersIncluded','sidingIncluded'].forEach(id=>$(id).checked=false); $('date').value=today(); renderOutcomeFields(); toggleFinancing(); toggleAddOns(); }
+function editEntry(e){ showView('log'); clearForm(); $('entryId').value=e.entryId; $('date').value=e.date; $('customerName').value=e.customerName||''; $('customerPhone').value=e.customerPhone||''; $('leadSource').value=e.leadSource||'Other'; $('outcome').value=e.outcome||'Follow-up Needed'; $('presented').checked=e.presented==='Y'; $('appointmentConfirmed').checked=e.appointmentConfirmed==='Y'; $('qualifiedSit').checked=e.qualifiedSit==='Y'; $('outOfScopeReason').value=e.outOfScopeReason||''; $('followUpDate').value=e.followUpDate||''; $('noSignReason').value=e.noSignReason||''; $('signedType').value=e.signedType||'One Call Close'; $('crmxUploaded').value=e.crmxUploaded||'N'; ['contractAmount','cashAmount','downPayment','squareCount','costPerSquare','approvedAmount','deniedAmount','gutterLf','gutterPricePerLf','sidingSqft','sidingPricePerSqft','addedWorkAmount'].forEach(id=>$(id).value=e[id]||''); $('appliedFinancing').checked=e.appliedFinancing==='Y'; $('guttersIncluded').checked=e.guttersIncluded==='Y'; $('sidingIncluded').checked=e.sidingIncluded==='Y'; $('managerNotes').value=e.managerNotes||''; renderOutcomeFields(); toggleFinancing(); toggleAddOns(); previewCommission(); }
+async function tapDoor(){ const c=(Number(localStorage.getItem(DOOR_KEY)||0)+1); localStorage.setItem(DOOR_KEY,c); $('doorCount').textContent=c; }
+async function syncDoors(){ try{ const count=Number(localStorage.getItem(DOOR_KEY)||0); if(!count){toast('No unsynced doors');return} await post('tapDoor',{count,date:today()}); localStorage.setItem(DOOR_KEY,0); $('doorCount').textContent='0'; toast('Doors synced'); loadToday(); }catch(e){toast(e.message)} }
+function resetLocalDoors(){ localStorage.setItem(DOOR_KEY,0); $('doorCount').textContent='0'; }
+function metricsHtml(t){ return `<div class="metric"><b>${t.leadsIssued||0}</b><span>Leads</span></div><div class="metric"><b>${t.demos||0}</b><span>Demos</span></div><div class="metric"><b>${t.roofingAgreements||0}</b><span>Signed</span></div>`; }
+function statsHtml(t){ return `<div class="stat"><span>Gross Revenue</span><b>${money(t.grossRevenue)}</b></div><div class="stat"><span>Commission</span><b>${money(t.commissionPaid)}</b></div><div class="stat"><span>Doors Knocked</span><b>${t.doorsKnocked||0}</b></div><div class="stat"><span>Close Rate</span><b>${Math.round((t.closeRate||0)*100)}%</b></div>`; }
+function entryHtml(e){ const cls=e.pendingApproval?'entry pending':'entry'; return `<div class="${cls}"><div class="top"><b>${e.customerName||'(No name)'}</b><span class="pill">${e.outcome}</span></div><div class="small">${e.date} - ${e.rep||ME.name} - ${e.leadSource||''}</div><div class="stat"><span>Contract</span><b>${money(e.contractAmount)}</b></div><div class="stat"><span>Commission</span><b>${money(e.totalCommission)}</b></div><div class="actions"><button class="secondary" onclick='editEntry(${JSON.stringify(e).replace(/'/g,"&#39;")})'>Edit</button></div></div>`; }
+async function loadToday(){ try{ const json=await post('getToday',{date:today()}); $('todayMetrics').innerHTML=metricsHtml(json.totals); $('todayStats').innerHTML=statsHtml(json.totals); $('todayList').innerHTML=json.appointments.length?json.appointments.map(entryHtml).join(''):'No appointments logged today.'; }catch(e){toast(e.message)} }
+async function loadHistory(){ try{ const json=await post('getHistory',{start:$('histStart').value,end:$('histEnd').value}); $('historyList').innerHTML=json.entries.length?json.entries.map(entryHtml).join(''):'No entries found.'; }catch(e){toast(e.message)} }
+async function loadManager(){ if(ME.role!=='admin')return; try{ const json=await post('adminTeamRollup',{start:$('rollStart').value,end:$('rollEnd').value}); $('teamSummary').innerHTML=metricsHtml(json.rollup)+statsHtml(json.rollup); $('teamRows').innerHTML=json.reps.map(r=>`<div class="entry"><div class="top"><b>${r.rep}</b><span>${money(r.grossRevenue)}</span></div><div class="small">${r.leadsIssued} leads, ${r.demos} demos, ${r.roofingAgreements} signed, ${r.doorsKnocked} doors, ${money(r.commissionPaid)} commission</div></div>`).join(''); $('pendingApprovals').innerHTML=json.pending.length?json.pending.map(p=>`<div class="entry pending"><b>${p.customerName}</b><div class="small">${p.rep} - ${money(p.contractAmount)} - ${p.costPerSquare}/sq</div><div class="actions"><input id="rate-${p.entryId}" placeholder="Rate e.g. .05" inputmode="decimal"><button onclick="approveDeal('${p.entryId}')">Approve</button></div></div>`).join(''):'No pending approvals.'; loadReps(); }catch(e){toast(e.message)} }
+async function approveDeal(id){ try{ const rate=Number($('rate-'+id).value); await post('adminApproveDeal',{entryId:id,rate,notes:'Approved in manager dashboard'}); toast('Deal approved'); loadManager(); }catch(e){toast(e.message)} }
+async function loadReps(){ try{ const json=await post('adminManageRep',{mode:'list'}); $('repList').innerHTML=json.reps.map(r=>`<div class="entry"><b>${r.name}</b> <span class="pill">${r.role}</span><div class="small">${r.active?'Active':'Inactive'} - ${r.hasPassword?'password set':'needs password'}</div><div class="actions"><button class="secondary" onclick="setRepActive('${r.name.replace(/'/g,"\\'")}',${!r.active})">${r.active?'Deactivate':'Activate'}</button><button class="secondary" onclick="setRepRole('${r.name.replace(/'/g,"\\'")}', '${r.role==='admin'?'rep':'admin'}')">Make ${r.role==='admin'?'Rep':'Admin'}</button></div></div>`).join(''); }catch(e){toast(e.message)} }
+async function addRep(){ try{ await post('adminManageRep',{mode:'add',name:$('repName').value.trim(),password:$('repPassword').value,role:$('repRole').value}); toast('Rep added'); loadReps(); }catch(e){toast(e.message)} }
+async function resetRepPassword(){ try{ await post('adminManageRep',{mode:'resetPassword',name:$('repName').value.trim(),password:$('repPassword').value}); toast('Password reset'); loadReps(); }catch(e){toast(e.message)} }
+async function setRepActive(name,active){ try{ await post('adminManageRep',{mode:'setActive',name,active}); loadReps(); }catch(e){toast(e.message)} }
+async function setRepRole(name,role){ try{ await post('adminManageRep',{mode:'setRole',name,role}); loadReps(); }catch(e){toast(e.message)} }
+window.addEventListener('online',()=>syncDoors().catch(()=>{}));
+if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+updateApiLabel();
+if(TOKEN&&ME) boot().catch(e=>{toast(e.message);logout();});
+</script>
+</body>
+</html>
