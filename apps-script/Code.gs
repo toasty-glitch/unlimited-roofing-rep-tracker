@@ -2,6 +2,14 @@
  * Unlimited Roofing Rep Tracker - Apps Script backend.
  * Deploy as a standalone web app: Execute as Me, access Anyone.
  * POST JSON { action, token?, ...payload } -> JSON response.
+ *
+ * Sections:
+ *  - Auth/session, rep app write path (logAppointment_/editAppointment_/tapDoor_) — UNTOUCHED by dashboard v2.
+ *  - Commission math (commission_/roofCommissionRate_) — knobs: ROOF_FLOOR, FLAT_RATE below.
+ *  - Dashboard v2 aggregation (bottom of file, "dashboard data" section) — adminDashboardData_,
+ *    aggregateWindow_, Goals tab, lead-source alias map. Every adjustable value is tagged // ADJUST:.
+ *    Run `grep ADJUST apps-script/Code.gs` to list them all. See docs/ADJUSTING.md for the
+ *    non-coder runbook (changing goals, adding reps, redeploying).
  */
 
 const SS_PROP = 'ROOFING_REP_TRACKER_SPREADSHEET_ID';
@@ -10,11 +18,12 @@ const ADMIN_PIN_PROP = 'ROOFING_REP_TRACKER_ADMIN_PIN';
 const KPI_SHEET_ID = '1sYx3ARdazMCn0oCuC_svI3DxQ4PhPhH6yXU5QfFgryc'; // Unlimited Roofing — KPI Tracker (historical data)
 const TZ = 'America/New_York';
 const TOKEN_TTL_SECONDS = 43200;
-const ROOF_FLOOR = 580;
-const FLAT_RATE = 0.10;
+const ROOF_FLOOR = 580; // ADJUST: commission floor — cost/sq below this pays no roof commission until manager override
+const FLAT_RATE = 0.10; // ADJUST: flat commission rate for gutters/siding/added-work
+// ADJUST: commission breakpoints by cost-per-square live in roofCommissionRate_() below (5% / 7.5% / 10%)
 
 const TABS = {
-  Reps: ['Rep ID','Name','Password Hash','Role','Active','Created'],
+  Reps: ['Rep ID','Name','Password Hash','Role','Active','Created','Branch'],
   Dispositions: [
     'Entry ID','Timestamp','Date','Rep','Customer Name','Customer Phone','Lead Source','Appointment Outcome',
     'Presented Price/Products/Hour','Out-of-Scope Reason','Follow-up Date','Signed','Signed Type','No-Sign Reason',
@@ -33,10 +42,60 @@ const SEED_REPS = [
   ['Chris Jones','rep'], ['Dave Kershaw','rep'], ['Sheldon Stimeling','rep'], ['Andrew Fielder','rep'],
   ['James Meadows','rep'], ['Stacy Clark','admin'], ['Jessica Henson','admin'], ['Ted Beedle','admin'],
 ];
+const DEFAULT_BRANCH = 'Roanoke'; // ADJUST: branch new/legacy reps are seeded/migrated into
 
 const OUTCOMES = ['Contract Signed','Follow-up Needed','No Show','Rescheduled','Out of Scope','Disinterested','Cancelled'];
-const LEAD_SOURCES = ['Company Lead','Retail Nightly','Self-Gen','Referral','Canvass','Roofer Stage','Angi\'s List','Guaranteed Estimates','Other'];
+const LEAD_SOURCES = ['Company Lead','Retail Nightly','Self-Gen','Referral','Canvass','Roofer Stage','Angi\'s List','Guaranteed Estimates','Gutter','Other'];
 const NO_SIGN_REASONS = ['Think It Over','Price','Spouse Not Present','Financing','Competitor','Timing','Not Qualified','Other'];
+
+// ADJUST: collapse messy historical lead-source labels into the canonical LEAD_SOURCES list.
+// Unmapped values pass through unchanged (so new sources show up rather than disappearing).
+const LEAD_SOURCE_ALIASES = {
+  'Gutter guy': 'Gutter', 'Gutter Lead': 'Gutter', 'Gutter lead': 'Gutter', // all gutter variants -> the one 'Gutter' source
+  'W ted self gen insurance deal': 'Self-Gen',
+  'Office Call In': 'Company Lead',
+  'Not specified': 'Other', '': 'Other',
+};
+
+function canonicalLeadSource_(raw) {
+  const s = String(raw == null ? '' : raw).trim();
+  if (!s) return 'Other';
+  return LEAD_SOURCE_ALIASES[s] || s;
+}
+
+// ADJUST: seed values for the Goals tab — edited live in the spreadsheet after first run, not here.
+const GOALS_DEFAULTS = {
+  squaresTarget: 5000, revenueTarget: 3000000, contractsTarget: 276,
+  donationGoal: 10000, donatedToDate: 0,
+  demoRateTarget: 0.8, occTarget: 0.3, sitRateTarget: '', closeRateTarget: '',
+};
+
+// ---- pure helpers (no Apps Script API calls — covered by test/dashboard-helpers.test.js) ----
+
+function compareWindow_(start, end) {
+  const startMs = Date.parse(start + 'T00:00:00Z');
+  const endMs = Date.parse(end + 'T00:00:00Z');
+  const days = Math.round((endMs - startMs) / 86400000) + 1;
+  const compareEndMs = startMs - 86400000;
+  const compareStartMs = compareEndMs - (days - 1) * 86400000;
+  return { compareStart: isoFromMs_(compareStartMs), compareEnd: isoFromMs_(compareEndMs) };
+}
+
+function isoFromMs_(ms) { return new Date(ms).toISOString().slice(0, 10); }
+
+function goalPct_(value, target) {
+  if (!target) return 0;
+  const p = Math.round((Number(value) || 0) / target * 100);
+  return Math.max(0, Math.min(100, p));
+}
+
+function delta_(curr, prev) {
+  curr = Number(curr) || 0; prev = Number(prev) || 0;
+  const diff = round2_(curr - prev);
+  const pctChange = prev ? round2_((curr - prev) / Math.abs(prev) * 100) : (curr ? 100 : 0);
+  const dir = diff > 0 ? 'up' : diff < 0 ? 'down' : 'flat';
+  return { diff, pctChange, dir };
+}
 
 function doGet() {
   return ContentService.createTextOutput('Unlimited Roofing Rep Tracker API is up.');
@@ -61,6 +120,7 @@ function doPost(e) {
     if (action === 'adminManageRep') return adminOnly_(sess, () => adminManageRep_(req, sess));
     if (action === 'adminApproveDeal') return adminOnly_(sess, () => adminApproveDeal_(req, sess));
     if (action === 'adminDashboardData') return adminOnly_(sess, () => adminDashboardData_(req));
+    if (action === 'getGoals') return adminOnly_(sess, () => json_({ ok:true, goals:getGoals_() }));
     return json_({ ok:false, error:'unknown action' });
   } catch (err) {
     return json_({ ok:false, error:String(err && err.message ? err.message : err) });
@@ -97,6 +157,8 @@ function ss_() {
   const old = ss.getSheetByName('Sheet1');
   if (old && Object.keys(TABS).length > 0) ss.deleteSheet(old);
   seedReps_();
+  migrateRepsBranch_(ss);
+  ensureGoalsTab_(ss);
   return ss;
 }
 
@@ -105,7 +167,35 @@ function sheet_(name) { return ss_().getSheetByName(name); }
 function seedReps_() {
   const reps = SpreadsheetApp.openById(PropertiesService.getScriptProperties().getProperty(SS_PROP)).getSheetByName('Reps');
   if (reps.getLastRow() > 1) return;
-  SEED_REPS.forEach((r, idx) => reps.appendRow(['R' + String(idx + 1).padStart(3, '0'), r[0], '', r[1], true, new Date()]));
+  SEED_REPS.forEach((r, idx) => reps.appendRow(['R' + String(idx + 1).padStart(3, '0'), r[0], '', r[1], true, new Date(), DEFAULT_BRANCH]));
+}
+
+function migrateRepsBranch_(ss) {
+  const sh = ss.getSheetByName('Reps');
+  const headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+  if (headers.indexOf('Branch') !== -1) return;
+  const col = headers.length + 1;
+  sh.getRange(1, col).setValue('Branch').setFontWeight('bold');
+  const lastRow = sh.getLastRow();
+  if (lastRow > 1) sh.getRange(2, col, lastRow - 1, 1).setValue(DEFAULT_BRANCH);
+}
+
+function ensureGoalsTab_(ss) {
+  let sh = ss.getSheetByName('Goals');
+  if (sh) return sh;
+  sh = ss.insertSheet('Goals');
+  sh.appendRow(['Key', 'Value']);
+  sh.setFrozenRows(1);
+  sh.getRange(1, 1, 1, 2).setFontWeight('bold');
+  Object.keys(GOALS_DEFAULTS).forEach(k => sh.appendRow([k, GOALS_DEFAULTS[k]]));
+  return sh;
+}
+
+function getGoals_() {
+  const rows = sheet_('Goals').getDataRange().getValues().slice(1);
+  const g = {};
+  rows.forEach(r => { if (r[0]) g[r[0]] = r[1]; });
+  return g;
 }
 
 function salt_() {
@@ -162,7 +252,7 @@ function findRepAny_(name) {
   const rows = sheet_('Reps').getDataRange().getValues();
   for (let i = 1; i < rows.length; i++) {
     if (String(rows[i][1]).toLowerCase() === String(name || '').toLowerCase()) {
-      return { row:i + 1, repId:rows[i][0], name:rows[i][1], hash:rows[i][2], role:rows[i][3], active:rows[i][4] };
+      return { row:i + 1, repId:rows[i][0], name:rows[i][1], hash:rows[i][2], role:rows[i][3], active:rows[i][4], branch:rows[i][6] || DEFAULT_BRANCH };
     }
   }
   return null;
@@ -359,7 +449,7 @@ function adminManageRep_(req, sess) {
     if (findRepAny_(req.name)) return json_({ ok:false, error:'rep exists' });
     const sh = sheet_('Reps');
     const id = 'R' + String(sh.getLastRow()).padStart(3, '0');
-    sh.appendRow([id, req.name, req.password ? hash_(req.password) : '', req.role === 'admin' ? 'admin' : 'rep', true, new Date()]);
+    sh.appendRow([id, req.name, req.password ? hash_(req.password) : '', req.role === 'admin' ? 'admin' : 'rep', true, new Date(), req.branch || DEFAULT_BRANCH]);
     audit_(sess.name, 'adminManageRep', id, 'add ' + req.name);
     return json_({ ok:true, repId:id });
   }
@@ -368,13 +458,14 @@ function adminManageRep_(req, sess) {
   if (mode === 'resetPassword') sheet_('Reps').getRange(rep.row, 3).setValue(hash_(req.password || ''));
   else if (mode === 'setActive') sheet_('Reps').getRange(rep.row, 5).setValue(!!req.active);
   else if (mode === 'setRole') sheet_('Reps').getRange(rep.row, 4).setValue(req.role === 'admin' ? 'admin' : 'rep');
+  else if (mode === 'setBranch') sheet_('Reps').getRange(rep.row, 7).setValue(req.branch || DEFAULT_BRANCH);
   else return json_({ ok:false, error:'unknown rep mode' });
   audit_(sess.name, 'adminManageRep', rep.repId, mode + ' ' + rep.name);
   return json_({ ok:true });
 }
 
 function listReps_() {
-  return sheet_('Reps').getDataRange().getValues().slice(1).map(r => ({ repId:r[0], name:r[1], role:r[3], active:r[4], hasPassword:!!r[2] }));
+  return sheet_('Reps').getDataRange().getValues().slice(1).map(r => ({ repId:r[0], name:r[1], role:r[3], active:r[4], hasPassword:!!r[2], branch:r[6] || DEFAULT_BRANCH }));
 }
 
 function audit_(actor, action, entryId, details) {
@@ -388,69 +479,98 @@ function numOrBlank_(v) { const n = num_(v); return n === 0 && (v === '' || v ==
 function round2_(v) { return Math.round((Number(v) || 0) * 100) / 100; }
 function truthy_(v) { return v === true || v === 'Y' || v === 'Yes' || v === 'on' || v === 1 || v === '1'; }
 
-// ---------- dashboard data (admin-only; read-only aggregation, no writes) ----------
-function adminDashboardData_(req) {
-  return json_({ ok: true, live: liveDashboardAgg_(), historical: historicalDashboardAgg_() });
+// ---------- dashboard v2 data (admin-only; read-only aggregation, no writes) ----------
+//
+// Funnel (AUTHORITATIVE — overrides v1/Looker): Leads -> Qualified Sits -> Demos -> Close.
+//   leadsIssued      = disposition row count
+//   qualifiedSits    = Qualified Sit flag == 'Y'           (col 41)
+//   demos            = Presented Price/Products/Hour=='Y'  (col 8)  -- "demo" = product shown
+//   roofingAgreements= outcome == 'Contract Signed'
+//   oneCallCloses    = Signed Type == 'One Call Close'      (col 12, reported, not inferred)
+//   followUpContracts= Signed Type == 'Follow Up Contract'  (col 12)
+// Rates (computed client-side from these raw counts): sitRate=qualifiedSits/leadsIssued,
+// demoRate=demos/qualifiedSits, closeRate=roofingAgreements/demos, occRate=oneCallCloses/qualifiedSits.
+
+function blankAgg_(keys) {
+  return Object.assign({
+    leadsIssued: 0, qualifiedSits: 0, demos: 0, roofingAgreements: 0, oneCallCloses: 0, followUpContracts: 0,
+    grossRevenue: 0, turnDownCount: 0, turnDownRevenue: 0, doorsKnocked: 0, commission: 0, squaresSold: 0,
+  }, keys || {});
 }
 
-function blankAgg_() {
-  return { leadsIssued: 0, demos: 0, noOp: 0, sits: 0, oneCallClose: 0, followUpContracts: 0, roofingAgreements: 0,
-    grossRevenue: 0, turnDownCount: 0, turnDownRevenue: 0, doorsKnocked: 0, commission: 0, dispositionRows: 0, signed: 0 };
+function repBranchMap_() {
+  const rows = sheet_('Reps').getDataRange().getValues().slice(1);
+  const m = {};
+  rows.forEach(r => { m[r[1]] = r[6] || DEFAULT_BRANCH; });
+  return m;
 }
 
-function liveDashboardAgg_() {
-  const rows = sheet_('Dispositions').getDataRange().getValues().slice(1);
-  const doorRows = sheet_('DoorsKnocked').getDataRange().getValues().slice(1);
-  const byDate = {}, byRep = {}, byLeadSource = {};
-  const bump = (map, key) => { if (!map[key]) map[key] = blankAgg_(); return map[key]; };
+function sumAgg_(rows) {
+  const t = blankAgg_();
+  rows.forEach(r => Object.keys(t).forEach(k => { t[k] += Number(r[k]) || 0; }));
+  return t;
+}
 
-  rows.forEach(r => {
-    const date = fmtDate_(r[2]), rep = r[3], leadSource = r[6] || '(blank)', outcome = r[7];
-    const d = bump(byDate, date), rp = bump(byRep, rep), ls = bump(byLeadSource, leadSource);
-    [d, rp, ls].forEach(a => { a.leadsIssued++; a.dispositionRows++; });
-    if (outcome === 'No Show' || outcome === 'Cancelled') [d, rp, ls].forEach(a => a.noOp++);
-    else [d, rp, ls].forEach(a => a.demos++);
-    if (r[41] === 'Y') [d, rp, ls].forEach(a => a.sits++); // Qualified Sit
+// Aggregates live (Dispositions/DoorsKnocked) + historical (KPI Tracker) data for one date
+// window and branch, filtering every source by its own date column BEFORE aggregating.
+function aggregateWindow_(start, end, branch, opts) {
+  opts = opts || {};
+  const repBranch = repBranchMap_();
+  const branchOf = rep => repBranch[rep] || DEFAULT_BRANCH; // ADJUST: reps missing from the Reps tab default here
+  const branchOk = rep => !branch || branch === 'All' || branchOf(rep) === branch;
+  const byRep = {}, byDate = {}, byLeadSource = {};
+  const bump = (map, key, keys) => { if (!map[key]) map[key] = blankAgg_(keys); return map[key]; };
+
+  sheet_('Dispositions').getDataRange().getValues().slice(1).forEach(r => {
+    const date = fmtDate_(r[2]); // Date col index 2
+    if (date < start || date > end) return;
+    const rep = r[3];
+    if (!branchOk(rep)) return;
+    const leadSource = canonicalLeadSource_(r[6]);
+    const outcome = r[7];
+    const rp = bump(byRep, rep, { rep, branch: branchOf(rep) });
+    const dt = bump(byDate, date, { date });
+    const ls = bump(byLeadSource, leadSource, { leadSource });
+    [rp, dt, ls].forEach(a => a.leadsIssued++);
+    if (r[41] === 'Y') [rp, dt, ls].forEach(a => a.qualifiedSits++); // Qualified Sit
+    if (r[8] === 'Y') [rp, dt, ls].forEach(a => a.demos++); // Presented Price/Products/Hour -> demo
     if (outcome === 'Contract Signed') {
-      [d, rp, ls].forEach(a => { a.roofingAgreements++; a.signed++; });
-      if (r[10]) [d, rp, ls].forEach(a => a.followUpContracts++); else [d, rp, ls].forEach(a => a.oneCallClose++);
+      [rp, dt, ls].forEach(a => a.roofingAgreements++);
+      if (r[12] === 'One Call Close') [rp, dt, ls].forEach(a => a.oneCallCloses++);
+      else if (r[12] === 'Follow Up Contract') [rp, dt, ls].forEach(a => a.followUpContracts++);
       const gutterTotal = r[27] === 'Y' ? num_(r[28]) * num_(r[29]) : 0;
       const sidingTotal = r[31] === 'Y' ? num_(r[32]) * num_(r[33]) : 0;
       const revenue = num_(r[14]) + gutterTotal + sidingTotal + num_(r[35]);
-      [d, rp, ls].forEach(a => a.grossRevenue += revenue);
+      [rp, dt, ls].forEach(a => { a.grossRevenue += revenue; a.squaresSold += num_(r[22]); });
       rp.commission += num_(r[38]);
     }
-    if (r[18] === 'Denied') {
-      [d, rp, ls].forEach(a => { a.turnDownCount++; a.turnDownRevenue += num_(r[21]); });
-    }
+    if (r[18] === 'Denied') [rp, dt, ls].forEach(a => { a.turnDownCount++; a.turnDownRevenue += num_(r[21]); });
   });
 
-  doorRows.forEach(r => {
-    const date = fmtDate_(r[1]), rep = r[2];
-    bump(byDate, date).doorsKnocked += num_(r[3]);
-    bump(byRep, rep).doorsKnocked += num_(r[3]);
+  sheet_('DoorsKnocked').getDataRange().getValues().slice(1).forEach(r => {
+    const date = fmtDate_(r[1]); // Date col index 1
+    if (date < start || date > end) return;
+    const rep = r[2];
+    if (!branchOk(rep)) return;
+    bump(byRep, rep, { rep, branch: branchOf(rep) }).doorsKnocked += num_(r[3]);
+    bump(byDate, date, { date }).doorsKnocked += num_(r[3]);
   });
 
-  return { byDate: Object.values(byDate), byRep: Object.values(byRep), byLeadSource: Object.values(byLeadSource) };
-}
-
-function historicalDashboardAgg_() {
   const kpiSs = SpreadsheetApp.openById(KPI_SHEET_ID);
   const repDaily = kpiSs.getSheetByName('Historical Rep Daily KPI').getDataRange().getValues();
-  const rdHeader = repDaily[0];
-  const ri = {}; rdHeader.forEach((h, i) => ri[h] = i);
-  const byDate = {}, byRep = {};
-  const bump = (map, key) => { if (!map[key]) map[key] = blankAgg_(); return map[key]; };
-
+  const rdHeader = repDaily[0]; const ri = {}; rdHeader.forEach((h, i) => { ri[h] = i; });
   repDaily.slice(1).forEach(r => {
-    const date = r[ri['Date']], rep = r[ri['Rep']];
-    const d = bump(byDate, date), rp = bump(byRep, rep);
-    [d, rp].forEach(a => {
+    const date = fmtDate_(r[ri['Date']]); // Date col index 0
+    if (date < start || date > end) return;
+    const rep = r[ri['Rep']];
+    if (!branchOk(rep)) return;
+    const rp = bump(byRep, rep, { rep, branch: branchOf(rep) });
+    const dt = bump(byDate, date, { date });
+    [rp, dt].forEach(a => {
       a.leadsIssued += num_(r[ri['Leads Issued']]);
       a.demos += num_(r[ri["Leads Demo'd"]]);
-      a.noOp += num_(r[ri['No Op']]);
-      a.sits += num_(r[ri['Qualified Sits']]);
-      a.oneCallClose += num_(r[ri['One Call Close']]);
+      a.qualifiedSits += num_(r[ri['Qualified Sits']]);
+      a.oneCallCloses += num_(r[ri['One Call Close']]);
       a.followUpContracts += num_(r[ri['Follow Up Contracts']]);
       a.roofingAgreements += num_(r[ri['Roofing Agreements']]);
       a.grossRevenue += num_(r[ri['Gross Revenue']]);
@@ -458,23 +578,68 @@ function historicalDashboardAgg_() {
       a.turnDownRevenue += num_(r[ri['Turn-down Total Revenue']]);
       a.doorsKnocked += num_(r[ri['Doors Knocked']]);
     });
-    rp.dispositionRows += num_(r[ri['Disposition Rows']]);
-    rp.signed += num_(r[ri['Disposition Signed Count']]);
   });
 
-  const lsRows = kpiSs.getSheetByName('Historical Lead Source KPI').getDataRange().getValues();
-  const lsHeader = lsRows[0];
-  const li = {}; lsHeader.forEach((h, i) => li[h] = i);
-  const byLeadSource = {};
-  lsRows.slice(1).forEach(r => {
-    const source = r[li['Lead Source']];
-    const ls = bump(byLeadSource, source);
-    ls.leadsIssued += num_(r[li['Appointments']]);
-    ls.signed += num_(r[li['Signed Count']]);
-    ls.roofingAgreements += num_(r[li['Signed Count']]);
-    ls.grossRevenue += num_(r[li['Contract Amount']]);
+  // ADJUST: historical squares-sold come from the raw 'Historical Customer Dispositions' tab — the
+  // Rep Daily rollup never carried Square Count. Signed-only so it means squares SOLD, matching the
+  // live side (which counts squares only on Contract Signed deals). 'Signed' values are messy in the
+  // historical sheet (Contract / Contract + Evidence Packet / Contigency / No / No Sale ...).
+  const histDispo = kpiSs.getSheetByName('Historical Customer Dispositions').getDataRange().getValues();
+  const hd = histDispo[0] || []; const hi = {}; hd.forEach((h, i) => { hi[String(h).replace(/^﻿/, '')] = i; });
+  histDispo.slice(1).forEach(r => {
+    const date = fmtDate_(r[hi['Date']]); // Date col index 1
+    if (date < start || date > end) return;
+    const rep = r[hi['Rep']];
+    if (!branchOk(rep)) return;
+    const s = String(r[hi['Signed']] || '').trim().toLowerCase();
+    if (!(s.indexOf('contract') === 0 || s.indexOf('contig') === 0 || s.indexOf('contin') === 0)) return; // signed/contingency only
+    const sq = num_(r[hi['Square Count']]);
+    if (!sq) return;
+    bump(byRep, rep, { rep, branch: branchOf(rep) }).squaresSold += sq;
+    bump(byDate, date, { date }).squaresSold += sq;
+    if (!opts.skipHistLeadSource) {
+      const src = canonicalLeadSource_(r[hi['Lead Source']]);
+      bump(byLeadSource, src, { leadSource: src }).squaresSold += sq;
+    }
   });
 
-  return { byDate: Object.values(byDate), byRep: Object.values(byRep), byLeadSource: Object.values(byLeadSource) };
+  if (!opts.skipHistLeadSource) {
+    const lsRows = kpiSs.getSheetByName('Historical Lead Source KPI').getDataRange().getValues();
+    const lsHeader = lsRows[0]; const li = {}; lsHeader.forEach((h, i) => { li[h] = i; });
+    lsRows.slice(1).forEach(r => {
+      const date = fmtDate_(r[li['Date']]); // Date col index 0 — exists; v1 ignored it
+      if (date < start || date > end) return;
+      const leadSource = canonicalLeadSource_(r[li['Lead Source']]);
+      const ls = bump(byLeadSource, leadSource, { leadSource });
+      ls.leadsIssued += num_(r[li['Appointments']]);
+      ls.roofingAgreements += num_(r[li['Signed Count']]);
+      ls.grossRevenue += num_(r[li['Contract Amount']]);
+    });
+  }
+
+  return {
+    byRep: Object.values(byRep), byDate: Object.values(byDate), byLeadSource: Object.values(byLeadSource),
+    totals: sumAgg_(Object.values(byRep)), // totals from byRep only — byLeadSource historical rows mirror the same underlying deals, summing both would double-count
+  };
 }
+
+function adminDashboardData_(req) {
+  const branch = req.branch || 'All';
+  const end = req.end || today_();
+  const start = req.start || end;
+  const cmp = compareWindow_(start, end);
+  const current = aggregateWindow_(start, end, branch);
+  const compare = aggregateWindow_(cmp.compareStart, cmp.compareEnd, branch, { skipHistLeadSource: true });
+  const ytdStart = today_().slice(0, 4) + '-01-01'; // ADJUST: change if the goal year ever isn't the calendar year
+  const ytd = aggregateWindow_(ytdStart, today_(), branch, { skipHistLeadSource: true });
+  return json_({
+    ok: true,
+    current: { byRep: current.byRep, byDate: current.byDate, byLeadSource: current.byLeadSource, totals: current.totals },
+    compare: { byRep: compare.byRep, totals: compare.totals },
+    ytd: { squaresSold: ytd.totals.squaresSold, grossRevenue: ytd.totals.grossRevenue, contracts: ytd.totals.roofingAgreements },
+    goals: getGoals_(),
+    start, end, branch, compareStart: cmp.compareStart, compareEnd: cmp.compareEnd,
+  });
+}
+
 function boolText_(v) { return truthy_(v) ? 'Y' : 'N'; }
