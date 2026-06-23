@@ -54,14 +54,15 @@ Base counts (per disposition row):
 - **Qualified Sits** = `Qualified Sit` flag == 'Y' (col index 41).
 - **Demos** = `Presented Price/Products/Hour` flag == 'Y' (col index 8). "Demo" = product was shown.
 - **Roofing Agreements** (closes) = outcome == 'Contract Signed'.
-- **One Call Closes** = signed with no follow-up date; **Follow-Up Contracts** = signed with a follow-up date.
+- **One Call Closes** = the explicitly reported `Signed Type` == 'One Call Close' (col index 12).
+  This is a reported value, NOT inferred from follow-up-date presence (v1 inferred it — wrong).
+  **Follow-Up Contracts** = `Signed Type` == 'Follow Up Contract'.
 
 Rates (each dial):
 - **Sit Rate** = Qualified Sits ÷ Leads.
 - **Demo Rate** = Demos ÷ Qualified Sits.  (of the sits, how many were shown product) — target 80%.
 - **Close Rate** = Roofing Agreements ÷ Demos.  (of those shown product, how many signed)
-- **One Call Close %** = One Call Closes ÷ total signed (One Call + Follow-Up) — target 30%.
-  `// CONFIRM:` OCC denominator with Ted if the dial reads off vs expectation.
+- **One Call Close %** = One Call Closes ÷ Qualified Sits — target 30%. (Confirmed by Ted.)
 
 Historical KPI columns map to the same concepts: `Qualified Sits`, `Leads Demo'd` (= demos),
 `Leads Issued` (= leads), `Roofing Agreements`, `One Call Close`, `Follow Up Contracts`.

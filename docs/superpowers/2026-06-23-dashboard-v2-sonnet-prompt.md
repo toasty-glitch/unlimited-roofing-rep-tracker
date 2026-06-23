@@ -37,13 +37,14 @@ Base counts per disposition row:
 - Leads = row count.
 - Qualified Sits = `Qualified Sit` == 'Y' (col 41).
 - Demos = `Presented Price/Products/Hour` == 'Y' (col 8). "Demo" means product was shown.
-- Agreements = outcome == 'Contract Signed'. One Call Close = signed, no follow-up date; Follow-Up Contract = signed, has follow-up date.
+- Agreements = outcome == 'Contract Signed'.
+- One Call Closes = `Signed Type` == 'One Call Close' (col index 12) — an EXPLICITLY reported value, NOT inferred from follow-up-date presence (v1 inferred it; that's wrong). Follow-Up Contract = `Signed Type` == 'Follow Up Contract'.
 Rates:
 - Sit Rate = Qualified Sits / Leads
 - Demo Rate = Demos / Qualified Sits        (dial target 80%)
 - Close Rate = Agreements / Demos
-- One Call Close % = One Call Closes / (One Call + Follow-Up)   (dial target 30%) — add a `// CONFIRM:` comment on the denominator.
-v1 counted `demos = presented||signed||follow-up` and `demos/leads`. Replace that.
+- One Call Close % = One Call Closes / Qualified Sits   (dial target 30%) — confirmed denominator, no guesswork.
+v1 counted `demos = presented||signed||follow-up`, used `demos/leads`, and inferred OCC from follow-up date. Replace all of that.
 
 ### 4. Branch field (Code.gs)
 Add a `Branch` column to the `Reps` tab schema. Migrate/seed existing reps to `Roanoke`. Carry
