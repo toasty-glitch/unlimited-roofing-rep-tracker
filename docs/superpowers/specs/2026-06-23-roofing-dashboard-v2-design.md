@@ -67,6 +67,19 @@ Rates (each dial):
 Historical KPI columns map to the same concepts: `Qualified Sits`, `Leads Demo'd` (= demos),
 `Leads Issued` (= leads), `Roofing Agreements`, `One Call Close`, `Follow Up Contracts`.
 
+### Lead-source segmentation (required)
+- `byLeadSource` MUST include **Leads Issued** (= appointment/disposition count per source) as a
+  first-class metric, plus sits, demos, closes, close rate, gross/net revenue, avg contract, squares.
+- Source comes from the disposition `Lead Source` field (col 6) for live data and the `Lead Source`
+  column for historical. NOTE: "Leads Issued segmented by source" is disposition/appointment-based;
+  it can differ from the nightly self-reported "Leads Issued" total (which has no source tag). The
+  dashboard's per-source leads number is the appointment count — label it consistently.
+- **Source hygiene:** historical source values are inconsistent (`Gutter Lead`/`Gutter guy`/`Gutter`,
+  `W ted self gen insurance deal`, `Office Call In`, `Not specified`, …). Add an editable
+  `// ADJUST:` alias map (e.g. `{ 'Gutter guy':'Gutter Lead', 'Gutter':'Gutter Lead', ... }`) applied
+  at aggregation time so near-duplicates collapse into clean buckets; unmapped values pass through.
+  Keep the canonical list aligned with the rep app's `LEAD_SOURCES`.
+
 ### Branch field
 - Add `Branch` column to the `Reps` tab schema (`TABS.Reps`).
 - `seedReps_` / migration sets existing reps' branch to `Roanoke`.

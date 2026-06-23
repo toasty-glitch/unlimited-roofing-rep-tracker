@@ -46,6 +46,17 @@ Rates:
 - One Call Close % = One Call Closes / Qualified Sits   (dial target 30%) — confirmed denominator, no guesswork.
 v1 counted `demos = presented||signed||follow-up`, used `demos/leads`, and inferred OCC from follow-up date. Replace all of that.
 
+### 3b. Lead-source segmentation (Code.gs + dashboard.html)
+- `byLeadSource` MUST carry **Leads Issued** (= appointment/disposition count per source) as a
+  first-class field, alongside sits, demos, closes, close rate, gross/net revenue, avg contract, squares.
+- Source = disposition `Lead Source` (col 6) for live, `Lead Source` column for historical. Per-source
+  "leads issued" is appointment-based and may differ from the nightly self-reported total (no source tag) —
+  label it consistently so the two aren't confused.
+- Historical source values are messy (`Gutter Lead`/`Gutter guy`/`Gutter`, `W ted self gen insurance deal`,
+  `Office Call In`, `Not specified`). Add an editable `// ADJUST:` alias map applied at aggregation time to
+  collapse near-duplicates; unmapped values pass through. Keep canonical names aligned with the rep app's
+  `LEAD_SOURCES`. The lead-source table/chart must let you read leads-issued (and the rest) per source.
+
 ### 4. Branch field (Code.gs)
 Add a `Branch` column to the `Reps` tab schema. Migrate/seed existing reps to `Roanoke`. Carry
 `branch` through `findRepAny_`/`listReps_`/`adminManageRep`. Dispositions inherit branch from the rep
