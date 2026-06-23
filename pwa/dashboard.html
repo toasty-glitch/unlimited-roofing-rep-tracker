@@ -5,35 +5,43 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Unlimited Roofing — Rep Performance Dashboard</title>
 <style>
-:root{--teal:#155e63;--ink:#172126;--muted:#607178;--paper:#fff;--bg:#f6f7f3;--line:#dbe1dc;--gold:#d49b2a;--red:#b73737;--green:#237a52;--blue:#315f9b;--shadow:0 2px 10px rgba(23,33,38,.08)}
+:root{--bg:#1f2c3d;--panel:#2a3a50;--panel2:#324158;--line:#3d4f6b;--ink:#fff;--muted:#9fb0c7;--blue:#4a90d9;--gold:#d49b2a;--green:#3fae6f;--red:#d96a6a;--teal:#36c2c2;--shadow:0 2px 10px rgba(0,0,0,.25)}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:Arial,Helvetica,sans-serif;padding-bottom:40px}
-button,input{font:inherit}button{border:0;border-radius:8px;padding:11px 12px;background:var(--teal);color:#fff;font-weight:700;cursor:pointer}
-input{width:100%;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink);padding:10px;font-size:16px}
+button,input{font:inherit}button{border:0;border-radius:8px;padding:11px 12px;background:var(--blue);color:#fff;font-weight:700;cursor:pointer}
+input{width:100%;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink);padding:10px;font-size:16px}
 label{display:block;margin:10px 0 4px;font-size:12px;font-weight:700;color:var(--muted)}
-header{background:var(--teal);color:#fff;padding:14px 16px;box-shadow:var(--shadow)}
-header h1{font-size:18px;margin:0}
-main{max-width:1100px;margin:0 auto;padding:16px}
+header{background:var(--panel);padding:16px 20px;box-shadow:var(--shadow);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
+header h1{font-size:20px;margin:0;letter-spacing:.5px}
+header .sub{color:var(--muted);font-size:12px}
+main{max-width:1300px;margin:0 auto;padding:16px}
 .login-wrap{max-width:380px;margin:8vh auto 0;padding:12px}
-.card{background:var(--paper);border:1px solid var(--line);border-radius:8px;margin-bottom:16px;padding:16px;box-shadow:var(--shadow)}
-.card h2{margin:0 0 12px;color:var(--teal);font-size:15px}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px}
-.metric{background:#eef3f0;border:1px solid var(--line);border-radius:8px;padding:12px;text-align:center}
-.metric b{display:block;font-size:22px;color:var(--teal)}
-.metric span{font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;margin-bottom:16px;padding:16px;box-shadow:var(--shadow)}
+.card h2{margin:0 0 12px;color:var(--teal);font-size:14px;text-transform:uppercase;letter-spacing:.5px}
+.grid2{display:grid;grid-template-columns:1.1fr 2fr;gap:16px;align-items:start}
+.grid3{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.scorecards{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.score{background:var(--panel2);border-radius:8px;padding:10px;text-align:center}
+.score b{display:block;font-size:20px}
+.score span{font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.3px}
+.score .rate{font-size:11px;color:var(--gold);margin-top:2px;display:block}
+table{width:100%;border-collapse:collapse;font-size:12px}
+table th,table td{padding:7px 9px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+table th:first-child,table td:first-child{text-align:left;position:sticky;left:0;background:var(--panel)}
+table thead th{background:var(--panel2);color:var(--teal);font-weight:700;text-transform:uppercase;font-size:10px}
+table tbody tr:hover{background:rgba(255,255,255,.04)}
+.tablewrap{overflow-x:auto}
 .small{font-size:12px;color:var(--muted)}
 .error{color:var(--red)}
 .hide{display:none!important}
-canvas{max-height:320px}
-.legend-note{font-size:11px;color:var(--muted);margin-top:8px}
-@media(max-width:760px){.grid2{grid-template-columns:1fr}}
+canvas{max-height:300px}
+@media(max-width:900px){.grid2,.grid3{grid-template-columns:1fr}.scorecards{grid-template-columns:1fr 1fr}}
 </style>
 </head>
 <body>
 
 <div id="loginScreen" class="login-wrap">
   <div class="card">
-    <h2 style="text-align:center;color:var(--teal);font-size:22px">Rep Performance Dashboard</h2>
+    <h2 style="text-align:center;color:var(--teal);font-size:22px;text-transform:none">Rep Performance Dashboard</h2>
     <p class="small" style="text-align:center">Admin sign-in (same credentials as the rep tracker app)</p>
     <label>Name</label><input id="loginName" autocomplete="username">
     <label>Password</label><input id="loginPassword" type="password" autocomplete="current-password">
@@ -43,51 +51,41 @@ canvas{max-height:320px}
 </div>
 
 <div id="dashScreen" class="hide">
-<header><h1>Unlimited Roofing — Rep Performance (Live + Historical)</h1></header>
+<header>
+  <div><h1>Unlimited Roofing — Rep Performance</h1><div class="sub">All-time: historical (legacy forms) + live (rep tracker app)</div></div>
+</header>
 <main>
-  <div class="grid3">
-    <div class="metric"><b id="mLeads">—</b><span>Leads Issued (all-time)</span></div>
-    <div class="metric"><b id="mDemos">—</b><span>Demos</span></div>
-    <div class="metric"><b id="mSigned">—</b><span>Roofing Agreements</span></div>
+  <div class="grid2">
+    <div class="card">
+      <h2>Combined Metrics — All-Time</h2>
+      <div id="scorecards" class="scorecards"></div>
+    </div>
+    <div class="card">
+      <h2>Revenue Trend (Historical → Live)</h2>
+      <canvas id="chartRevenue"></canvas>
+      <p class="small">Historical period ends, live period (rep tracker app) begins where the gold line starts.</p>
+    </div>
   </div>
 
   <div class="card">
-    <h2>Revenue trend (historical + live, by day)</h2>
-    <canvas id="chartRevenue"></canvas>
-    <p class="legend-note">Historical period: form-based data (through go-live). Live period: rep tracker app data. Boundary marks where the new app took over.</p>
+    <h2>Rep Comparison</h2>
+    <div class="tablewrap"><table id="repTable"></table></div>
   </div>
 
-  <div class="grid2">
-    <div class="card">
-      <h2>Close rate by rep</h2>
-      <canvas id="chartCloseByRep"></canvas>
-    </div>
-    <div class="card">
-      <h2>Close rate by lead source</h2>
-      <canvas id="chartCloseByLeadSource"></canvas>
-    </div>
+  <div class="card">
+    <h2>Lead Source Comparison</h2>
+    <div class="tablewrap"><table id="leadSourceTable"></table></div>
   </div>
 
-  <div class="grid2">
+  <div class="grid3">
     <div class="card">
-      <h2>Commission paid by rep (live period only)</h2>
-      <canvas id="chartCommission"></canvas>
-      <p class="legend-note">No commission data exists for the historical period — the legacy form never tracked it per-deal.</p>
-    </div>
-    <div class="card">
-      <h2>Leads → Demo → Close funnel (all-time)</h2>
-      <canvas id="chartFunnel"></canvas>
-    </div>
-  </div>
-
-  <div class="grid2">
-    <div class="card">
-      <h2>Doors knocked vs. close rate (by rep)</h2>
+      <h2>Doors Knocked vs. Close Rate (by rep)</h2>
       <canvas id="chartDoorsVsClose"></canvas>
     </div>
     <div class="card">
-      <h2>Turn-down rate by rep (financing denials ÷ signed deals)</h2>
-      <canvas id="chartTurnDown"></canvas>
+      <h2>Commission Paid by Rep (live period only)</h2>
+      <canvas id="chartCommission"></canvas>
+      <p class="small">No commission data exists for the historical period — the legacy form never tracked it per-deal.</p>
     </div>
   </div>
 </main>
@@ -124,8 +122,44 @@ async function login() {
   } catch (e) { $('loginError').textContent = e.message || 'Cannot reach API'; }
 }
 
-const TEAL = '#155e63', GOLD = '#d49b2a', GREEN = '#237a52', BLUE = '#315f9b', RED = '#b73737';
-const sum = (arr, fn) => arr.reduce((a, x) => a + (fn(x) || 0), 0);
+const BLUE = '#4a90d9', GOLD = '#d49b2a', GREEN = '#3fae6f', RED = '#d96a6a', TEAL = '#36c2c2';
+const money = n => '$' + Math.round(n || 0).toLocaleString();
+const pct = (a, b) => b ? Math.round(a / b * 1000) / 10 : 0;
+
+function combine(hist, live) {
+  const a = {}; const keys = ['leadsIssued','demos','noOp','sits','oneCallClose','followUpContracts','roofingAgreements','grossRevenue','turnDownCount','turnDownRevenue','doorsKnocked','commission','dispositionRows','signed'];
+  keys.forEach(k => a[k] = (hist[k] || 0) + (live[k] || 0));
+  return a;
+}
+function sumAgg(rows) {
+  const a = { leadsIssued:0, demos:0, noOp:0, sits:0, oneCallClose:0, followUpContracts:0, roofingAgreements:0, grossRevenue:0, turnDownCount:0, turnDownRevenue:0, doorsKnocked:0, commission:0, dispositionRows:0, signed:0 };
+  rows.forEach(r => Object.keys(a).forEach(k => a[k] += r[k] || 0));
+  return a;
+}
+
+function buildScorecards(hist, live) {
+  const t = combine(sumAgg(hist.byRep), sumAgg(live.byRep));
+  const netRevenue = t.grossRevenue - t.turnDownRevenue;
+  const avgContract = t.roofingAgreements ? Math.round(t.grossRevenue / t.roofingAgreements) : 0;
+  const cards = [
+    ['Leads Issued', t.leadsIssued, null],
+    ['Leads Demo\'d', t.demos, pct(t.demos, t.leadsIssued) + '% demo rate'],
+    ['No Ops', t.noOp, pct(t.noOp, t.leadsIssued) + '% of leads'],
+    ['Qualified Sits', t.sits, pct(t.sits, t.demos) + '% of demos'],
+    ['One Call Closes', t.oneCallClose, pct(t.oneCallClose, t.roofingAgreements) + '% of closes'],
+    ['Follow-Up Contracts', t.followUpContracts, pct(t.followUpContracts, t.roofingAgreements) + '% of closes'],
+    ['Roofing Agreements', t.roofingAgreements, pct(t.roofingAgreements, t.demos) + '% close rate'],
+    ['Turn-down #', t.turnDownCount, pct(t.turnDownCount, t.roofingAgreements + t.turnDownCount) + '% TD rate'],
+    ['Gross Revenue', money(t.grossRevenue), null],
+    ['Avg Contract Price', money(avgContract), null],
+    ['Turn-down Revenue', money(t.turnDownRevenue), null],
+    ['Net Revenue', money(netRevenue), null],
+    ['Doors Knocked', t.doorsKnocked, null],
+    ['Commission Paid (live)', money(t.commission), null],
+  ];
+  $('scorecards').innerHTML = cards.map(([label, val, rate]) =>
+    `<div class="score"><b>${val}</b><span>${label}</span>${rate !== null ? `<span class="rate">${rate}</span>` : ''}</div>`).join('');
+}
 
 function buildRevenueTrend(hist, live) {
   const histPoints = hist.byDate.slice().sort((a, b) => a.date < b.date ? -1 : 1).map(d => ({ x: d.date, y: d.grossRevenue }));
@@ -133,41 +167,80 @@ function buildRevenueTrend(hist, live) {
   new Chart($('chartRevenue'), {
     type: 'line',
     data: { datasets: [
-      { label: 'Historical', data: histPoints, borderColor: TEAL, backgroundColor: TEAL, tension: 0.2 },
-      { label: 'Live (rep tracker app)', data: livePoints, borderColor: GOLD, backgroundColor: GOLD, tension: 0.2 },
+      { label: 'Historical', data: histPoints, borderColor: TEAL, backgroundColor: TEAL, tension: 0.2, pointRadius: 0 },
+      { label: 'Live (rep tracker app)', data: livePoints, borderColor: GOLD, backgroundColor: GOLD, tension: 0.2, pointRadius: 2 },
     ]},
-    options: { parsing: false, scales: { x: { type: 'category' }, y: { beginAtZero: true } } },
+    options: { parsing: false, scales: { x: { type: 'category', ticks: { color: '#9fb0c7' } }, y: { beginAtZero: true, ticks: { color: '#9fb0c7' } } },
+      plugins: { legend: { labels: { color: '#fff' } } } },
   });
 }
 
-function closeRate(r) { return r.dispositionRows ? r.signed / r.dispositionRows : 0; }
-
-function buildCloseByRep(hist, live) {
+function repTableHtml(hist, live) {
   const reps = Array.from(new Set([...hist.byRep.map(r => r.rep), ...live.byRep.map(r => r.rep)])).sort();
-  const histMap = Object.fromEntries(hist.byRep.map(r => [r.rep, r]));
-  const liveMap = Object.fromEntries(live.byRep.map(r => [r.rep, r]));
-  new Chart($('chartCloseByRep'), {
-    type: 'bar',
-    data: { labels: reps, datasets: [
-      { label: 'Historical close rate', data: reps.map(r => histMap[r] ? Math.round(closeRate(histMap[r]) * 1000) / 10 : 0), backgroundColor: TEAL },
-      { label: 'Live close rate', data: reps.map(r => liveMap[r] ? Math.round(closeRate(liveMap[r]) * 1000) / 10 : 0), backgroundColor: GOLD },
-    ]},
-    options: { scales: { y: { beginAtZero: true, ticks: { callback: v => v + '%' } } } },
-  });
+  const hm = Object.fromEntries(hist.byRep.map(r => [r.rep, r])), lm = Object.fromEntries(live.byRep.map(r => [r.rep, r]));
+  const metrics = [
+    ['Doors Knocked', r => r.doorsKnocked, v => v],
+    ['Leads Issued', r => r.leadsIssued, v => v],
+    ['Demos', r => r.demos, v => v],
+    ['No Ops', r => r.noOp, v => v],
+    ['Qualified Sits', r => r.sits, v => v],
+    ['One Call Close', r => r.oneCallClose, v => v],
+    ['Follow Up Contracts', r => r.followUpContracts, v => v],
+    ['Roofing Agreements', r => r.roofingAgreements, v => v],
+    ['Close Rate', r => pct(r.signed, r.dispositionRows), v => v + '%'],
+    ['Turn-down #', r => r.turnDownCount, v => v],
+    ['Turn-down Revenue', r => r.turnDownRevenue, money],
+    ['Gross Revenue', r => r.grossRevenue, money],
+    ['Net Revenue', r => r.grossRevenue - r.turnDownRevenue, money],
+    ['Commission (live)', r => r.commission, money],
+  ];
+  const head = `<thead><tr><th>Metric</th>${reps.map(r => `<th>${r}</th>`).join('')}</tr></thead>`;
+  const body = metrics.map(([label, getter, fmt]) => {
+    const cells = reps.map(rep => {
+      const h = hm[rep] || {}, l = lm[rep] || {};
+      const combined = combine(h, l);
+      return `<td>${fmt(getter(combined))}</td>`;
+    }).join('');
+    return `<tr><td>${label}</td>${cells}</tr>`;
+  }).join('');
+  return head + '<tbody>' + body + '</tbody>';
 }
 
-function buildCloseByLeadSource(hist, live) {
+function leadSourceTableHtml(hist, live) {
   const sources = Array.from(new Set([...hist.byLeadSource.map(s => s.leadSource), ...live.byLeadSource.map(s => s.leadSource)])).sort();
-  const histMap = Object.fromEntries(hist.byLeadSource.map(s => [s.leadSource, s]));
-  const liveMap = Object.fromEntries(live.byLeadSource.map(s => [s.leadSource, s]));
-  const rate = s => s && s.appointments ? Math.round(s.signedCount / s.appointments * 1000) / 10 : 0;
-  new Chart($('chartCloseByLeadSource'), {
-    type: 'bar',
-    data: { labels: sources, datasets: [
-      { label: 'Historical', data: sources.map(s => rate(histMap[s])), backgroundColor: TEAL },
-      { label: 'Live', data: sources.map(s => rate(liveMap[s])), backgroundColor: GOLD },
-    ]},
-    options: { scales: { y: { beginAtZero: true, ticks: { callback: v => v + '%' } } } },
+  const hm = Object.fromEntries(hist.byLeadSource.map(s => [s.leadSource, s])), lm = Object.fromEntries(live.byLeadSource.map(s => [s.leadSource, s]));
+  const metrics = [
+    ['Appointments', r => r.leadsIssued, v => v],
+    ['Signed Count', r => r.signed, v => v],
+    ['Close Rate', r => pct(r.signed, r.leadsIssued), v => v + '%'],
+    ['Gross Revenue', r => r.grossRevenue, money],
+    ['Avg Contract Price', r => r.roofingAgreements ? Math.round(r.grossRevenue / r.roofingAgreements) : 0, money],
+  ];
+  const head = `<thead><tr><th>Metric</th>${sources.map(s => `<th>${s}</th>`).join('')}</tr></thead>`;
+  const body = metrics.map(([label, getter, fmt]) => {
+    const cells = sources.map(s => {
+      const h = hm[s] || {}, l = lm[s] || {};
+      const combined = combine(h, l);
+      return `<td>${fmt(getter(combined))}</td>`;
+    }).join('');
+    return `<tr><td>${label}</td>${cells}</tr>`;
+  }).join('');
+  return head + '<tbody>' + body + '</tbody>';
+}
+
+function buildDoorsVsClose(hist, live) {
+  const reps = Array.from(new Set([...hist.byRep.map(r => r.rep), ...live.byRep.map(r => r.rep)]));
+  const hm = Object.fromEntries(hist.byRep.map(r => [r.rep, r])), lm = Object.fromEntries(live.byRep.map(r => [r.rep, r]));
+  const points = reps.map(rep => {
+    const c = combine(hm[rep] || {}, lm[rep] || {});
+    return { rep, x: c.doorsKnocked, y: pct(c.signed, c.dispositionRows) };
+  });
+  new Chart($('chartDoorsVsClose'), {
+    type: 'scatter',
+    data: { datasets: [{ label: 'Rep', data: points, backgroundColor: TEAL, pointRadius: 6 }] },
+    options: { plugins: { tooltip: { callbacks: { label: ctx => `${points[ctx.dataIndex].rep}: ${ctx.parsed.x} doors, ${ctx.parsed.y}% close` } }, legend: { display: false } },
+      scales: { x: { title: { display: true, text: 'Doors knocked', color: '#9fb0c7' }, ticks: { color: '#9fb0c7' } },
+        y: { title: { display: true, text: 'Close rate %', color: '#9fb0c7' }, beginAtZero: true, ticks: { color: '#9fb0c7' } } } },
   });
 }
 
@@ -176,57 +249,8 @@ function buildCommission(live) {
   new Chart($('chartCommission'), {
     type: 'bar',
     data: { labels: reps.map(r => r.rep), datasets: [{ label: 'Commission $', data: reps.map(r => r.commission), backgroundColor: GREEN }] },
-    options: { indexAxis: 'y', scales: { x: { beginAtZero: true } } },
-  });
-}
-
-function buildFunnel(hist, live) {
-  const leads = sum(hist.byRep, r => r.leadsIssued) + sum(live.byRep, r => r.leadsIssued);
-  const demos = sum(hist.byRep, r => r.demos) + sum(live.byRep, r => r.demos);
-  const signed = sum(hist.byRep, r => r.signed) + sum(live.byRep, r => r.signed);
-  $('mLeads').textContent = leads; $('mDemos').textContent = demos; $('mSigned').textContent = signed;
-  new Chart($('chartFunnel'), {
-    type: 'bar',
-    data: { labels: ['Leads Issued', 'Demos', 'Roofing Agreements'], datasets: [{ data: [leads, demos, signed], backgroundColor: [BLUE, TEAL, GOLD] }] },
-    options: { indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true } } },
-  });
-}
-
-function buildDoorsVsClose(hist, live) {
-  const merge = (h, l) => {
-    const reps = Array.from(new Set([...h.map(r => r.rep), ...l.map(r => r.rep)]));
-    const hm = Object.fromEntries(h.map(r => [r.rep, r])), lm = Object.fromEntries(l.map(r => [r.rep, r]));
-    return reps.map(rep => {
-      const a = hm[rep] || { doorsKnocked: 0, dispositionRows: 0, signed: 0 };
-      const b = lm[rep] || { doorsKnocked: 0, dispositionRows: 0, signed: 0 };
-      const doors = (a.doorsKnocked || 0) + (b.doorsKnocked || 0);
-      const rows = (a.dispositionRows || 0) + (b.dispositionRows || 0);
-      const signed = (a.signed || 0) + (b.signed || 0);
-      return { rep, x: doors, y: rows ? Math.round(signed / rows * 1000) / 10 : 0 };
-    });
-  };
-  const points = merge(hist.byRep, live.byRep);
-  new Chart($('chartDoorsVsClose'), {
-    type: 'scatter',
-    data: { datasets: [{ label: 'Rep', data: points, backgroundColor: TEAL,
-      pointRadius: 6 }] },
-    options: { plugins: { tooltip: { callbacks: { label: ctx => `${points[ctx.dataIndex].rep}: ${ctx.parsed.x} doors, ${ctx.parsed.y}% close` } }, legend: { display: false } },
-      scales: { x: { title: { display: true, text: 'Doors knocked' } }, y: { title: { display: true, text: 'Close rate %' }, beginAtZero: true } } },
-  });
-}
-
-function buildTurnDown(hist, live) {
-  const reps = Array.from(new Set([...hist.byRep.map(r => r.rep), ...live.byRep.map(r => r.rep)])).sort();
-  const hm = Object.fromEntries(hist.byRep.map(r => [r.rep, r])), lm = Object.fromEntries(live.byRep.map(r => [r.rep, r]));
-  const rate = rep => {
-    const a = hm[rep] || { turnDownCount: 0, signed: 0 }, b = lm[rep] || { turnDownCount: 0, signed: 0 };
-    const td = (a.turnDownCount || 0) + (b.turnDownCount || 0), signed = (a.signed || 0) + (b.signed || 0);
-    return signed ? Math.round(td / signed * 1000) / 10 : 0;
-  };
-  new Chart($('chartTurnDown'), {
-    type: 'bar',
-    data: { labels: reps, datasets: [{ label: 'Turn-down rate', data: reps.map(rate), backgroundColor: RED }] },
-    options: { scales: { y: { beginAtZero: true, ticks: { callback: v => v + '%' } } } },
+    options: { indexAxis: 'y', plugins: { legend: { display: false } },
+      scales: { x: { beginAtZero: true, ticks: { color: '#9fb0c7' } }, y: { ticks: { color: '#9fb0c7' } } } },
   });
 }
 
@@ -234,13 +258,12 @@ async function boot() {
   $('loginScreen').classList.add('hide'); $('dashScreen').classList.remove('hide');
   try {
     const json = await post('adminDashboardData');
+    buildScorecards(json.historical, json.live);
     buildRevenueTrend(json.historical, json.live);
-    buildCloseByRep(json.historical, json.live);
-    buildCloseByLeadSource(json.historical, json.live);
-    buildCommission(json.live);
-    buildFunnel(json.historical, json.live);
+    $('repTable').innerHTML = repTableHtml(json.historical, json.live);
+    $('leadSourceTable').innerHTML = leadSourceTableHtml(json.historical, json.live);
     buildDoorsVsClose(json.historical, json.live);
-    buildTurnDown(json.historical, json.live);
+    buildCommission(json.live);
   } catch (e) {
     $('dashScreen').innerHTML = `<header><h1>Error</h1></header><main><div class="card error">${e.message}</div></main>`;
   }

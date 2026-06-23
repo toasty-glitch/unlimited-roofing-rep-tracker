@@ -393,36 +393,42 @@ function adminDashboardData_(req) {
   return json_({ ok: true, live: liveDashboardAgg_(), historical: historicalDashboardAgg_() });
 }
 
+function blankAgg_() {
+  return { leadsIssued: 0, demos: 0, noOp: 0, sits: 0, oneCallClose: 0, followUpContracts: 0, roofingAgreements: 0,
+    grossRevenue: 0, turnDownCount: 0, turnDownRevenue: 0, doorsKnocked: 0, commission: 0, dispositionRows: 0, signed: 0 };
+}
+
 function liveDashboardAgg_() {
   const rows = sheet_('Dispositions').getDataRange().getValues().slice(1);
   const doorRows = sheet_('DoorsKnocked').getDataRange().getValues().slice(1);
   const byDate = {}, byRep = {}, byLeadSource = {};
-  const bump = (map, key, init) => { if (!map[key]) map[key] = init(); return map[key]; };
+  const bump = (map, key) => { if (!map[key]) map[key] = blankAgg_(); return map[key]; };
 
   rows.forEach(r => {
     const date = fmtDate_(r[2]), rep = r[3], leadSource = r[6] || '(blank)', outcome = r[7];
-    const d = bump(byDate, date, () => ({ date, grossRevenue: 0, leadsIssued: 0, demos: 0, roofingAgreements: 0, turnDownCount: 0 }));
-    const rp = bump(byRep, rep, () => ({ rep, leadsIssued: 0, demos: 0, dispositionRows: 0, signed: 0, commission: 0, turnDownCount: 0 }));
-    const ls = bump(byLeadSource, leadSource, () => ({ leadSource, appointments: 0, signedCount: 0 }));
-
-    d.leadsIssued++; rp.leadsIssued++; rp.dispositionRows++; ls.appointments++;
-    if (outcome !== 'No Show' && outcome !== 'Rescheduled') { d.demos++; rp.demos++; }
+    const d = bump(byDate, date), rp = bump(byRep, rep), ls = bump(byLeadSource, leadSource);
+    [d, rp, ls].forEach(a => { a.leadsIssued++; a.dispositionRows++; });
+    if (outcome === 'No Show' || outcome === 'Cancelled') [d, rp, ls].forEach(a => a.noOp++);
+    else [d, rp, ls].forEach(a => a.demos++);
+    if (r[41] === 'Y') [d, rp, ls].forEach(a => a.sits++); // Qualified Sit
     if (outcome === 'Contract Signed') {
-      d.roofingAgreements++; rp.signed++; ls.signedCount++;
+      [d, rp, ls].forEach(a => { a.roofingAgreements++; a.signed++; });
+      if (r[10]) [d, rp, ls].forEach(a => a.followUpContracts++); else [d, rp, ls].forEach(a => a.oneCallClose++);
       const gutterTotal = r[27] === 'Y' ? num_(r[28]) * num_(r[29]) : 0;
       const sidingTotal = r[31] === 'Y' ? num_(r[32]) * num_(r[33]) : 0;
-      d.grossRevenue += num_(r[14]) + gutterTotal + sidingTotal + num_(r[35]);
+      const revenue = num_(r[14]) + gutterTotal + sidingTotal + num_(r[35]);
+      [d, rp, ls].forEach(a => a.grossRevenue += revenue);
       rp.commission += num_(r[38]);
     }
-    if (r[18] === 'Denied') { d.turnDownCount++; rp.turnDownCount++; }
+    if (r[18] === 'Denied') {
+      [d, rp, ls].forEach(a => { a.turnDownCount++; a.turnDownRevenue += num_(r[21]); });
+    }
   });
 
   doorRows.forEach(r => {
     const date = fmtDate_(r[1]), rep = r[2];
-    const d = bump(byDate, date, () => ({ date, grossRevenue: 0, leadsIssued: 0, demos: 0, roofingAgreements: 0, turnDownCount: 0, doorsKnocked: 0 }));
-    const rp = bump(byRep, rep, () => ({ rep, leadsIssued: 0, demos: 0, dispositionRows: 0, signed: 0, commission: 0, turnDownCount: 0, doorsKnocked: 0 }));
-    d.doorsKnocked = (d.doorsKnocked || 0) + num_(r[3]);
-    rp.doorsKnocked = (rp.doorsKnocked || 0) + num_(r[3]);
+    bump(byDate, date).doorsKnocked += num_(r[3]);
+    bump(byRep, rep).doorsKnocked += num_(r[3]);
   });
 
   return { byDate: Object.values(byDate), byRep: Object.values(byRep), byLeadSource: Object.values(byLeadSource) };
@@ -434,24 +440,26 @@ function historicalDashboardAgg_() {
   const rdHeader = repDaily[0];
   const ri = {}; rdHeader.forEach((h, i) => ri[h] = i);
   const byDate = {}, byRep = {};
-  const bump = (map, key, init) => { if (!map[key]) map[key] = init(); return map[key]; };
+  const bump = (map, key) => { if (!map[key]) map[key] = blankAgg_(); return map[key]; };
 
   repDaily.slice(1).forEach(r => {
     const date = r[ri['Date']], rep = r[ri['Rep']];
-    const d = bump(byDate, date, () => ({ date, grossRevenue: 0, leadsIssued: 0, demos: 0, roofingAgreements: 0, turnDownCount: 0, doorsKnocked: 0 }));
-    const rp = bump(byRep, rep, () => ({ rep, leadsIssued: 0, demos: 0, dispositionRows: 0, signed: 0, turnDownCount: 0, doorsKnocked: 0 }));
-    d.grossRevenue += num_(r[ri['Gross Revenue']]);
-    d.leadsIssued += num_(r[ri['Leads Issued']]);
-    d.demos += num_(r[ri["Leads Demo'd"]]);
-    d.roofingAgreements += num_(r[ri['Roofing Agreements']]);
-    d.turnDownCount += num_(r[ri['Turn-down #']]);
-    d.doorsKnocked += num_(r[ri['Doors Knocked']]);
-    rp.leadsIssued += num_(r[ri['Leads Issued']]);
-    rp.demos += num_(r[ri["Leads Demo'd"]]);
+    const d = bump(byDate, date), rp = bump(byRep, rep);
+    [d, rp].forEach(a => {
+      a.leadsIssued += num_(r[ri['Leads Issued']]);
+      a.demos += num_(r[ri["Leads Demo'd"]]);
+      a.noOp += num_(r[ri['No Op']]);
+      a.sits += num_(r[ri['Qualified Sits']]);
+      a.oneCallClose += num_(r[ri['One Call Close']]);
+      a.followUpContracts += num_(r[ri['Follow Up Contracts']]);
+      a.roofingAgreements += num_(r[ri['Roofing Agreements']]);
+      a.grossRevenue += num_(r[ri['Gross Revenue']]);
+      a.turnDownCount += num_(r[ri['Turn-down #']]);
+      a.turnDownRevenue += num_(r[ri['Turn-down Total Revenue']]);
+      a.doorsKnocked += num_(r[ri['Doors Knocked']]);
+    });
     rp.dispositionRows += num_(r[ri['Disposition Rows']]);
     rp.signed += num_(r[ri['Disposition Signed Count']]);
-    rp.turnDownCount += num_(r[ri['Turn-down #']]);
-    rp.doorsKnocked += num_(r[ri['Doors Knocked']]);
   });
 
   const lsRows = kpiSs.getSheetByName('Historical Lead Source KPI').getDataRange().getValues();
@@ -460,9 +468,11 @@ function historicalDashboardAgg_() {
   const byLeadSource = {};
   lsRows.slice(1).forEach(r => {
     const source = r[li['Lead Source']];
-    const ls = bump(byLeadSource, source, () => ({ leadSource: source, appointments: 0, signedCount: 0 }));
-    ls.appointments += num_(r[li['Appointments']]);
-    ls.signedCount += num_(r[li['Signed Count']]);
+    const ls = bump(byLeadSource, source);
+    ls.leadsIssued += num_(r[li['Appointments']]);
+    ls.signed += num_(r[li['Signed Count']]);
+    ls.roofingAgreements += num_(r[li['Signed Count']]);
+    ls.grossRevenue += num_(r[li['Contract Amount']]);
   });
 
   return { byDate: Object.values(byDate), byRep: Object.values(byRep), byLeadSource: Object.values(byLeadSource) };
