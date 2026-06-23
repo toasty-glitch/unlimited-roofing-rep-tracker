@@ -130,6 +130,21 @@ Top-to-bottom, single responsive page:
 - For each rep/metric: `current - compare` (counts) or `% change` (revenue), rendered with
   `ti-arrow-up` (green) / `ti-arrow-down` (red); zero shown neutral.
 
+## Brand styling
+
+Match myunlimitedroofing.com ("blue and gold"). Light theme like the site and the rep app —
+re-theme `dashboard.html` away from its current dark navy. Palette (from the live site CSS,
+an Avada/Fusion build):
+
+- Primary blue `#057EFB` (header, structure, KPI dials, links) — darker `#0468CF` for hover.
+- Gold `#FFBB00` (accent, yearly goal dials, highlights) — deeper `#C98A00` for text on light.
+- Ink `#333333`; muted `#494C4E` / `#7799AD`; surfaces white on `#F6F6F6`; tint `#E5F2FA`.
+- Deltas stay semantic green/red — not re-themed.
+
+Dials: yearly = gold arc, KPI = blue arc, donation = deeper gold. Expose the palette as
+`// ADJUST:` CSS variables at the top of `dashboard.html` (one place to change it). No hotlinked
+site assets; a text wordmark in brand blue is fine.
+
 ## Testing
 
 - `test/` already exists. Add an assert-based check for the pure helpers that can run outside

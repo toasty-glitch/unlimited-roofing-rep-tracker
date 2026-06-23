@@ -88,6 +88,19 @@ dials amber (donation pink), KPI dials teal. One reusable `gauge()` helper.
   `README.md` pointing to it.
 - Bump the cache version string in `pwa/sw.js` (otherwise phones serve a stale shell).
 
+### 9. Brand styling (match myunlimitedroofing.com — "blue and gold")
+Re-theme `dashboard.html` from its current dark navy to the company brand. Use a LIGHT theme like
+the website and the rep app. Exact palette pulled from the live site CSS:
+- Primary blue (structure, header, KPI dials, links/buttons): `#057EFB`. Darker for hover/active: `#0468CF`.
+- Gold (accent, the four YEARLY goal dials, highlights): `#FFBB00`. Deeper gold for text-on-light: `#C98A00`.
+- Ink/text: `#333333` primary, `#494C4E` / `#7799AD` secondary/muted.
+- Surfaces: white cards on `#F6F6F6` page bg; light blue tint `#E5F2FA` for subtle fills/section bands.
+- Keep deltas semantic: green up / red down (do NOT recolor those to brand) — they encode meaning.
+Dials: yearly goal dials = gold arc, KPI dials = blue arc, donation dial = gold (slightly deeper, e.g.
+`#C98A00`) so it reads distinct from the goal-count dials. Put these as `// ADJUST:` CSS variables at
+the top of `dashboard.html` so the palette is changeable in one place. Logo/wordmark optional; don't
+hotlink site assets — a text wordmark "Unlimited Roofing" in brand blue is fine.
+
 ## Testing
 - Add an assert-based test in `test/` for the pure helpers that run outside Apps Script: the
   prior-equal-length compare-window math, percent/delta formatting, and goal-% clamping (0–100).
