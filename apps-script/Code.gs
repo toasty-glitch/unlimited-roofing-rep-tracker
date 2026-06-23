@@ -45,13 +45,13 @@ const SEED_REPS = [
 const DEFAULT_BRANCH = 'Roanoke'; // ADJUST: branch new/legacy reps are seeded/migrated into
 
 const OUTCOMES = ['Contract Signed','Follow-up Needed','No Show','Rescheduled','Out of Scope','Disinterested','Cancelled'];
-const LEAD_SOURCES = ['Company Lead','Retail Nightly','Self-Gen','Referral','Canvass','Roofer Stage','Angi\'s List','Guaranteed Estimates','Other'];
+const LEAD_SOURCES = ['Company Lead','Retail Nightly','Self-Gen','Referral','Canvass','Roofer Stage','Angi\'s List','Guaranteed Estimates','Gutter','Other'];
 const NO_SIGN_REASONS = ['Think It Over','Price','Spouse Not Present','Financing','Competitor','Timing','Not Qualified','Other'];
 
 // ADJUST: collapse messy historical lead-source labels into the canonical LEAD_SOURCES list.
 // Unmapped values pass through unchanged (so new sources show up rather than disappearing).
 const LEAD_SOURCE_ALIASES = {
-  'Gutter guy': 'Other', 'Gutter': 'Other', 'Gutter Lead': 'Other',
+  'Gutter guy': 'Gutter', 'Gutter Lead': 'Gutter', 'Gutter lead': 'Gutter', // all gutter variants -> the one 'Gutter' source
   'W ted self gen insurance deal': 'Self-Gen',
   'Office Call In': 'Company Lead',
   'Not specified': 'Other', '': 'Other',
@@ -577,9 +577,30 @@ function aggregateWindow_(start, end, branch, opts) {
       a.turnDownCount += num_(r[ri['Turn-down #']]);
       a.turnDownRevenue += num_(r[ri['Turn-down Total Revenue']]);
       a.doorsKnocked += num_(r[ri['Doors Knocked']]);
-      // CONFIRM: historical sheet may not track squares sold per rep/day; sums 0 if column absent.
-      if (ri['Squares Sold'] !== undefined) a.squaresSold += num_(r[ri['Squares Sold']]);
     });
+  });
+
+  // ADJUST: historical squares-sold come from the raw 'Historical Customer Dispositions' tab — the
+  // Rep Daily rollup never carried Square Count. Signed-only so it means squares SOLD, matching the
+  // live side (which counts squares only on Contract Signed deals). 'Signed' values are messy in the
+  // historical sheet (Contract / Contract + Evidence Packet / Contigency / No / No Sale ...).
+  const histDispo = kpiSs.getSheetByName('Historical Customer Dispositions').getDataRange().getValues();
+  const hd = histDispo[0] || []; const hi = {}; hd.forEach((h, i) => { hi[String(h).replace(/^﻿/, '')] = i; });
+  histDispo.slice(1).forEach(r => {
+    const date = fmtDate_(r[hi['Date']]); // Date col index 1
+    if (date < start || date > end) return;
+    const rep = r[hi['Rep']];
+    if (!branchOk(rep)) return;
+    const s = String(r[hi['Signed']] || '').trim().toLowerCase();
+    if (!(s.indexOf('contract') === 0 || s.indexOf('contig') === 0 || s.indexOf('contin') === 0)) return; // signed/contingency only
+    const sq = num_(r[hi['Square Count']]);
+    if (!sq) return;
+    bump(byRep, rep, { rep, branch: branchOf(rep) }).squaresSold += sq;
+    bump(byDate, date, { date }).squaresSold += sq;
+    if (!opts.skipHistLeadSource) {
+      const src = canonicalLeadSource_(r[hi['Lead Source']]);
+      bump(byLeadSource, src, { leadSource: src }).squaresSold += sq;
+    }
   });
 
   if (!opts.skipHistLeadSource) {
