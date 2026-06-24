@@ -16,6 +16,8 @@ const SS_PROP = 'ROOFING_REP_TRACKER_SPREADSHEET_ID';
 const SALT_PROP = 'ROOFING_REP_TRACKER_SALT';
 const ADMIN_PIN_PROP = 'ROOFING_REP_TRACKER_ADMIN_PIN';
 const KPI_SHEET_ID = '1sYx3ARdazMCn0oCuC_svI3DxQ4PhPhH6yXU5QfFgryc'; // Unlimited Roofing — KPI Tracker (historical data)
+const RECON_SHEET_ID = '1HeDRyGCD_dt7daaZ6MlLzkiJ5AXwhlY9-b-5GIsypKE'; // Final Reporting Reconciliation — corrected historical funnel/contracts/revenue (frozen snapshot)
+const HIST_CUTOVER = '2026-06-23'; // ADJUST: last date covered by frozen history; the live app is authoritative for dates AFTER this
 const TZ = 'America/New_York';
 const TOKEN_TTL_SECONDS = 43200;
 const ROOF_FLOOR = 580; // ADJUST: commission floor — cost/sq below this pays no roof commission until manager override
@@ -556,68 +558,78 @@ function aggregateWindow_(start, end, branch, opts) {
     bump(byDate, date, { date }).doorsKnocked += num_(r[3]);
   });
 
-  const kpiSs = SpreadsheetApp.openById(KPI_SHEET_ID);
-  const repDaily = kpiSs.getSheetByName('Historical Rep Daily KPI').getDataRange().getValues();
-  const rdHeader = repDaily[0]; const ri = {}; rdHeader.forEach((h, i) => { ri[h] = i; });
-  repDaily.slice(1).forEach(r => {
-    const date = fmtDate_(r[ri['Date']]); // Date col index 0
-    if (date < start || date > end) return;
-    const rep = r[ri['Rep']];
-    if (!branchOk(rep)) return;
-    const rp = bump(byRep, rep, { rep, branch: branchOf(rep) });
-    const dt = bump(byDate, date, { date });
-    [rp, dt].forEach(a => {
-      a.leadsIssued += num_(r[ri['Leads Issued']]);
-      a.demos += num_(r[ri["Leads Demo'd"]]);
-      a.qualifiedSits += num_(r[ri['Qualified Sits']]);
-      a.oneCallCloses += num_(r[ri['One Call Close']]);
-      a.followUpContracts += num_(r[ri['Follow Up Contracts']]);
-      // roofingAgreements + grossRevenue come from the raw dispositions block below — the rollup's
-      // 'Roofing Agreements' col is near-empty (19 vs real 168) and 'Gross Revenue' undercounts.
-      a.turnDownCount += num_(r[ri['Turn-down #']]);
-      a.turnDownRevenue += num_(r[ri['Turn-down Total Revenue']]);
-      a.doorsKnocked += num_(r[ri['Doors Knocked']]);
+  // ---- HISTORICAL (frozen, pre-app) — only contributes for dates on/before HIST_CUTOVER ----
+  // The live app above is authoritative after the cutover; new data flows in there automatically.
+  if (start <= HIST_CUTOVER) {
+    const histEnd = end < HIST_CUTOVER ? end : HIST_CUTOVER; // clamp to the frozen window
+
+    // 1) AUTHORITATIVE reconciled funnel + contracts + revenue + turndowns, per rep/date, from the
+    //    manual-review reconciliation sheet ('_nightly_corrected' = the blessed value). In this model
+    //    OCC, Follow-Up, and 'Roofing Agreements' are three SEPARATE signed categories, so total
+    //    signed contracts = their sum.
+    const rec = SpreadsheetApp.openById(RECON_SHEET_ID).getSheetByName('Corrected Reconciliation').getDataRange().getValues();
+    const ci = {}; (rec[0] || []).forEach((h, i) => { ci[String(h).replace(/^﻿/, '')] = i; });
+    const cnum = (r, k) => num_(r[ci[k]]);
+    rec.slice(1).forEach(r => {
+      if (!r || !r[ci['Date']]) return;
+      const date = fmtDate_(r[ci['Date']]);
+      if (date < start || date > histEnd) return;
+      const rep = r[ci['Rep']];
+      if (!branchOk(rep)) return;
+      const occ = cnum(r, 'occ_nightly_corrected');
+      const fu = cnum(r, 'followup_contracts_nightly_corrected');
+      const ra = cnum(r, 'roofing_agreements_nightly_corrected');
+      const rp = bump(byRep, rep, { rep, branch: branchOf(rep) });
+      const dt = bump(byDate, date, { date });
+      [rp, dt].forEach(a => {
+        a.leadsIssued += cnum(r, 'leads_nightly_corrected');
+        a.demos += cnum(r, 'demos_nightly_corrected');
+        a.oneCallCloses += occ;
+        a.followUpContracts += fu;
+        a.roofingAgreements += occ + fu + ra; // total signed = the three signed categories summed
+        a.grossRevenue += cnum(r, 'gross_revenue_nightly_corrected');
+        a.turnDownCount += cnum(r, 'turndown_count_nightly_corrected');
+        a.turnDownRevenue += cnum(r, 'turndown_revenue_nightly_corrected');
+      });
     });
-  });
 
-  // ADJUST: historical SOLD metrics (contracts, revenue, squares) come from the raw 'Historical
-  // Customer Dispositions' tab — the Rep Daily rollup's 'Roofing Agreements'/'Gross Revenue' columns
-  // are unreliable (near-empty / undercount vs signed contract value). Signed-only; revenue =
-  // contract + gutter + added-work, to match the live computation. (The demo/sit flags are blank in
-  // this tab, so demos/sits stay on the rollup above.) 'Signed' values are messy:
-  // Contract / Contract + Evidence Packet / Contigency / No / No Sale ...
-  const histDispo = kpiSs.getSheetByName('Historical Customer Dispositions').getDataRange().getValues();
-  const hd = histDispo[0] || []; const hi = {}; hd.forEach((h, i) => { hi[String(h).replace(/^﻿/, '')] = i; });
-  histDispo.slice(1).forEach(r => {
-    const date = fmtDate_(r[hi['Date']]); // Date col index 1
-    if (date < start || date > end) return;
-    const rep = r[hi['Rep']];
-    if (!branchOk(rep)) return;
-    const s = String(r[hi['Signed']] || '').trim().toLowerCase();
-    if (!(s.indexOf('contract') === 0 || s.indexOf('contig') === 0 || s.indexOf('contin') === 0)) return; // signed/contingency only
-    const sq = num_(r[hi['Square Count']]);
-    const gutter = truthy_(r[hi['Gutters Included']]) ? num_(r[hi['Gutter LF']]) * num_(r[hi['Gutter $/LF']]) : 0;
-    const revenue = num_(r[hi['Contract Amount']]) + gutter + num_(r[hi['Added Work Amount']]); // matches live (no siding column in historical)
-    const rp = bump(byRep, rep, { rep, branch: branchOf(rep) });
-    const dt = bump(byDate, date, { date });
-    [rp, dt].forEach(a => { a.roofingAgreements++; a.grossRevenue += revenue; a.squaresSold += sq; });
-    if (!opts.skipHistLeadSource) {
+    const kpiSs = SpreadsheetApp.openById(KPI_SHEET_ID);
+
+    // 2) Doors + qualified sits are NOT in the reconciliation (never nightly-tracked). Take what the
+    //    Rep Daily rollup has — doors are the only source; historical sits are approximate (flagged).
+    const repDaily = kpiSs.getSheetByName('Historical Rep Daily KPI').getDataRange().getValues();
+    const ri = {}; (repDaily[0] || []).forEach((h, i) => { ri[h] = i; });
+    repDaily.slice(1).forEach(r => {
+      const date = fmtDate_(r[ri['Date']]);
+      if (date < start || date > histEnd) return;
+      const rep = r[ri['Rep']];
+      if (!branchOk(rep)) return;
+      const rp = bump(byRep, rep, { rep, branch: branchOf(rep) });
+      const dt = bump(byDate, date, { date });
+      [rp, dt].forEach(a => { a.doorsKnocked += num_(r[ri['Doors Knocked']]); a.qualifiedSits += num_(r[ri['Qualified Sits']]); });
+    });
+
+    // 3) Squares-sold (not in the reconciliation) + the lead-source breakdown come from the raw
+    //    'Historical Customer Dispositions' tab. Signed-only; revenue = contract+gutter+added (live-style).
+    //    Lead-source figures are disposition-derived and may not sum exactly to the reconciled rep totals.
+    const histDispo = kpiSs.getSheetByName('Historical Customer Dispositions').getDataRange().getValues();
+    const hi = {}; (histDispo[0] || []).forEach((h, i) => { hi[String(h).replace(/^﻿/, '')] = i; });
+    histDispo.slice(1).forEach(r => {
+      const date = fmtDate_(r[hi['Date']]);
+      if (date < start || date > histEnd) return;
+      const rep = r[hi['Rep']];
+      if (!branchOk(rep)) return;
       const src = canonicalLeadSource_(r[hi['Lead Source']]);
-      const ls = bump(byLeadSource, src, { leadSource: src });
-      ls.roofingAgreements++; ls.grossRevenue += revenue; ls.squaresSold += sq;
-    }
-  });
-
-  // byLeadSource leads-issued (appointments per source) from the Lead Source KPI sheet; its
-  // contracts/revenue now come from the raw block above, so we only take Appointments here.
-  if (!opts.skipHistLeadSource) {
-    const lsRows = kpiSs.getSheetByName('Historical Lead Source KPI').getDataRange().getValues();
-    const lsHeader = lsRows[0]; const li = {}; lsHeader.forEach((h, i) => { li[h] = i; });
-    lsRows.slice(1).forEach(r => {
-      const date = fmtDate_(r[li['Date']]); // Date col index 0 — exists; v1 ignored it
-      if (date < start || date > end) return;
-      const leadSource = canonicalLeadSource_(r[li['Lead Source']]);
-      bump(byLeadSource, leadSource, { leadSource }).leadsIssued += num_(r[li['Appointments']]);
+      const ls = opts.skipHistLeadSource ? null : bump(byLeadSource, src, { leadSource: src });
+      if (ls) ls.leadsIssued++; // every disposition row is one appointment for its source
+      const s = String(r[hi['Signed']] || '').trim().toLowerCase();
+      if (!(s.indexOf('contract') === 0 || s.indexOf('contig') === 0 || s.indexOf('contin') === 0)) return; // signed/contingency only
+      const sq = num_(r[hi['Square Count']]);
+      const gutter = truthy_(r[hi['Gutters Included']]) ? num_(r[hi['Gutter LF']]) * num_(r[hi['Gutter $/LF']]) : 0;
+      const revenue = num_(r[hi['Contract Amount']]) + gutter + num_(r[hi['Added Work Amount']]);
+      bump(byRep, rep, { rep, branch: branchOf(rep) }).squaresSold += sq;
+      bump(byDate, date, { date }).squaresSold += sq;
+      if (ls) { ls.roofingAgreements++; ls.grossRevenue += revenue; ls.squaresSold += sq; }
     });
   }
 

@@ -42,8 +42,9 @@ affected at any point. Only the admin dashboard has a brief window.
 
 ## 3. Verify (after Pages goes green)
 - [ ] Log into the dashboard as an admin. Login screen renders (dark, gold heading).
-- [ ] Yearly dials populate; **Squares Sold** reads roughly historical signed squares
-      (~3,290 YTD) **plus** any app-era squares — not near-zero. Revenue/Contracts dials sensible.
+- [ ] Yearly dials populate with the reconciled YTD figures (frozen history + live; live is ~0
+      until reps start logging): **Squares ~3,290/5,000 (66%)**, **Revenue ~$2.50M/$3M (83%)**,
+      **Contracts ~216/276 (78%)**. Contracts = OCC + Follow-Up + Roofing-Agreement categories.
 - [ ] Donation dial reflects the `donatedToDate` you set, against $10,000.
 - [ ] KPI dials show: Sit, Demo (vs 80%), Close, One Call Close % (vs 30%).
 - [ ] Date presets (This month / Last 14 days / YTD) and custom range refetch and change numbers.
