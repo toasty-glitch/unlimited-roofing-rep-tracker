@@ -572,18 +572,20 @@ function aggregateWindow_(start, end, branch, opts) {
       a.qualifiedSits += num_(r[ri['Qualified Sits']]);
       a.oneCallCloses += num_(r[ri['One Call Close']]);
       a.followUpContracts += num_(r[ri['Follow Up Contracts']]);
-      a.roofingAgreements += num_(r[ri['Roofing Agreements']]);
-      a.grossRevenue += num_(r[ri['Gross Revenue']]);
+      // roofingAgreements + grossRevenue come from the raw dispositions block below — the rollup's
+      // 'Roofing Agreements' col is near-empty (19 vs real 168) and 'Gross Revenue' undercounts.
       a.turnDownCount += num_(r[ri['Turn-down #']]);
       a.turnDownRevenue += num_(r[ri['Turn-down Total Revenue']]);
       a.doorsKnocked += num_(r[ri['Doors Knocked']]);
     });
   });
 
-  // ADJUST: historical squares-sold come from the raw 'Historical Customer Dispositions' tab — the
-  // Rep Daily rollup never carried Square Count. Signed-only so it means squares SOLD, matching the
-  // live side (which counts squares only on Contract Signed deals). 'Signed' values are messy in the
-  // historical sheet (Contract / Contract + Evidence Packet / Contigency / No / No Sale ...).
+  // ADJUST: historical SOLD metrics (contracts, revenue, squares) come from the raw 'Historical
+  // Customer Dispositions' tab — the Rep Daily rollup's 'Roofing Agreements'/'Gross Revenue' columns
+  // are unreliable (near-empty / undercount vs signed contract value). Signed-only; revenue =
+  // contract + gutter + added-work, to match the live computation. (The demo/sit flags are blank in
+  // this tab, so demos/sits stay on the rollup above.) 'Signed' values are messy:
+  // Contract / Contract + Evidence Packet / Contigency / No / No Sale ...
   const histDispo = kpiSs.getSheetByName('Historical Customer Dispositions').getDataRange().getValues();
   const hd = histDispo[0] || []; const hi = {}; hd.forEach((h, i) => { hi[String(h).replace(/^﻿/, '')] = i; });
   histDispo.slice(1).forEach(r => {
@@ -594,15 +596,20 @@ function aggregateWindow_(start, end, branch, opts) {
     const s = String(r[hi['Signed']] || '').trim().toLowerCase();
     if (!(s.indexOf('contract') === 0 || s.indexOf('contig') === 0 || s.indexOf('contin') === 0)) return; // signed/contingency only
     const sq = num_(r[hi['Square Count']]);
-    if (!sq) return;
-    bump(byRep, rep, { rep, branch: branchOf(rep) }).squaresSold += sq;
-    bump(byDate, date, { date }).squaresSold += sq;
+    const gutter = truthy_(r[hi['Gutters Included']]) ? num_(r[hi['Gutter LF']]) * num_(r[hi['Gutter $/LF']]) : 0;
+    const revenue = num_(r[hi['Contract Amount']]) + gutter + num_(r[hi['Added Work Amount']]); // matches live (no siding column in historical)
+    const rp = bump(byRep, rep, { rep, branch: branchOf(rep) });
+    const dt = bump(byDate, date, { date });
+    [rp, dt].forEach(a => { a.roofingAgreements++; a.grossRevenue += revenue; a.squaresSold += sq; });
     if (!opts.skipHistLeadSource) {
       const src = canonicalLeadSource_(r[hi['Lead Source']]);
-      bump(byLeadSource, src, { leadSource: src }).squaresSold += sq;
+      const ls = bump(byLeadSource, src, { leadSource: src });
+      ls.roofingAgreements++; ls.grossRevenue += revenue; ls.squaresSold += sq;
     }
   });
 
+  // byLeadSource leads-issued (appointments per source) from the Lead Source KPI sheet; its
+  // contracts/revenue now come from the raw block above, so we only take Appointments here.
   if (!opts.skipHistLeadSource) {
     const lsRows = kpiSs.getSheetByName('Historical Lead Source KPI').getDataRange().getValues();
     const lsHeader = lsRows[0]; const li = {}; lsHeader.forEach((h, i) => { li[h] = i; });
@@ -610,10 +617,7 @@ function aggregateWindow_(start, end, branch, opts) {
       const date = fmtDate_(r[li['Date']]); // Date col index 0 — exists; v1 ignored it
       if (date < start || date > end) return;
       const leadSource = canonicalLeadSource_(r[li['Lead Source']]);
-      const ls = bump(byLeadSource, leadSource, { leadSource });
-      ls.leadsIssued += num_(r[li['Appointments']]);
-      ls.roofingAgreements += num_(r[li['Signed Count']]);
-      ls.grossRevenue += num_(r[li['Contract Amount']]);
+      bump(byLeadSource, leadSource, { leadSource }).leadsIssued += num_(r[li['Appointments']]);
     });
   }
 
